@@ -1,0 +1,125 @@
+# Project Rules for Cursor 2.0 - QA Evidence Center
+
+## Tech Stack
+- **Framework**: Next.js 15 App Router + TypeScript strict mode
+- **Code Quality**: ESLint + Prettier (configured)
+- **ORM**: Prisma (MySQL 8.0)
+- **Validation**: Zod schemas for all inputs
+- **Auth**: NextAuth.js (Credentials provider first, Google OAuth optional)
+- **UI**: Tailwind CSS + shadcn/ui components
+- **Icons**: lucide-react
+- **State Management**: Zustand
+- **Data Fetching**: TanStack Query (React Query)
+- **Charts**: recharts
+- **PDF**: puppeteer or @react-pdf/renderer (future)
+
+## Database & ORM Rules
+- Use Prisma ORM with MySQL 8.0
+- Generate typesafe code with Zod on all inputs
+- Use `BigInt` for IDs (Prisma default)
+- Use `upsert` for idempotent operations in seeds
+- Never store binary files in DB - EvidenceFile stores metadata only (storage_type, path, drive_id, url)
+
+## Authentication & Authorization
+- NextAuth.js with Credentials provider (primary)
+- Google OAuth optional (for future)
+- RBAC implementation from `Role.code` (ADMIN, QA_LEAD, TEACHER, ASSESSOR)
+- School scoping via `UserSchoolRole` - users can only access data from schools they're assigned to
+- Middleware for route protection and RBAC checks
+
+## Evidence Code Generation
+- Format: `${indicator.code}-${running2digits}` (e.g., 2.3-01, 2.3-02)
+- Generated within same fiscal_year
+- Use `nextEvidenceCode(indicatorId, fiscalYear)` helper function
+- Fiscal year calculation: Oct-Dec = year + 544, Jan-Sep = year + 543
+
+## Data Seeding
+- Build idempotent seeds for:
+  - Roles (ADMIN, QA_LEAD, TEACHER, ASSESSOR)
+  - EduLevels (EARLY_CHILDHOOD, BASIC)
+  - QAStandards, QAIndicators, QASubIndicators (both EC and BASIC)
+  - Demo school and admin user
+- Use `upsert` or check existence before insert
+- Support `npm run db:reset` command
+
+## UI/UX Rules
+- Use Tailwind CSS for styling
+- Use shadcn/ui components (install via CLI)
+- Use lucide-react for icons
+- Follow WCAG AA accessibility guidelines
+- Use semantic HTML
+- Responsive design (mobile-first)
+- Primary font: Kanit (for Thai text)
+- i18n ready (primary language: Thai)
+
+## State & Data Management
+- Use Zustand for client-side state
+- Use TanStack Query for server state and data fetching
+- Use Server Actions for form submissions (Next.js 15)
+- Use React Hook Form + Zod for form validation
+
+## File Storage
+- **DO NOT** store binary files in database
+- EvidenceFile model stores:
+  - `storageType`: LOCAL | GDRIVE | URL
+  - `storagePath`: path for local files
+  - `driveFileId`: Google Drive file ID
+  - `externalUrl`: external URL
+- When setting primary file, reset other files in same evidence
+
+## Testing
+- Write unit tests for helper functions (e.g., `thaiFiscalYear()`, `nextEvidenceCode()`)
+- Use Jest or Vitest for unit tests
+- Use Playwright for E2E tests (smoke tests)
+- Minimum coverage: 70% for helpers
+
+## Code Style
+- TypeScript strict mode enabled
+- ESLint configured and must pass (no errors, no warnings)
+- Prettier formatted
+- Use async/await (no callbacks)
+- Use const/let (no var)
+- Prefer named exports
+- Use meaningful variable names (Thai comments OK, but code in English)
+
+## API Routes
+- Use Next.js App Router API routes (`/app/api/*`)
+- Use Server Actions for form submissions
+- Validate all inputs with Zod
+- Check RBAC and school scoping in every route
+- Log critical actions to AuditLog
+
+## Audit Logging
+- Log important events:
+  - CREATE_EVIDENCE
+  - UPDATE_EVIDENCE_STATUS
+  - UPLOAD_FILE
+  - CREATE_REVIEW
+  - LOGIN
+  - LOGOUT
+- Store in AuditLog table with actor, action, target, payload
+
+## Performance
+- Lighthouse score target: ≥ 85
+- Use Next.js Image component for images
+- Optimize database queries (use indexes)
+- Use pagination for large lists
+
+## Security
+- Never expose sensitive data in client-side code
+- Hash passwords with bcrypt
+- Validate all inputs server-side
+- Use CSRF protection (NextAuth handles this)
+- Sanitize user inputs
+
+## Error Handling
+- Use try-catch for async operations
+- Return proper HTTP status codes
+- Show user-friendly error messages
+- Log errors server-side
+
+## Documentation
+- Comment complex logic
+- Use JSDoc for functions
+- Keep README.md updated
+- Document API routes

@@ -1,0 +1,451 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model School {
+  id                   BigInt                @id @default(autoincrement())
+  sc_id                BigInt                @unique
+  name                 String
+  area_name            String?
+  province             String?
+  level_type           String?
+  del                  Boolean               @default(false)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  users                UserSchoolRole[]
+  primaryUsers         User[]                @relation("PrimarySchool")
+  evidence             Evidence[]
+  evidenceFiles        EvidenceFile[]
+  evidenceReviews      EvidenceReview[]
+  sarReports           SarReport[]
+  external             ExternalAssessment[]
+  evaluations          Evaluation[]
+  externalEvaluations  ExternalEvaluation[]
+  auditLogs            AuditLog[]
+  selfAssessmentScopes SelfAssessmentScope[]
+
+  @@map("school")
+}
+
+model Role {
+  id    BigInt           @id @default(autoincrement())
+  code  String           @unique // ADMIN, QA_LEAD, TEACHER, ASSESSOR
+  name  String
+  users UserSchoolRole[]
+
+  @@map("role")
+}
+
+model User {
+  id            BigInt           @id @default(autoincrement())
+  fullName      String
+  email         String           @unique
+  password      String? // สำหรับ Credentials provider (hash ด้วย bcrypt)
+  phone         String?
+  del           Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  primarySchool School?          @relation("PrimarySchool", fields: [schoolId], references: [sc_id])
+  schoolId      BigInt?
+  schoolRoles   UserSchoolRole[]
+  evidenceOwned Evidence[]       @relation("Owner")
+  evidenceFiles EvidenceFile[]   @relation("Uploader")
+  reviews       EvidenceReview[] @relation("Reviewer")
+  audits        AuditLog[]       @relation("Actor")
+
+  @@map("user")
+}
+
+model UserSchoolRole {
+  id        BigInt   @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    BigInt
+  school    School   @relation(fields: [schoolId], references: [sc_id])
+  schoolId  BigInt
+  role      Role     @relation(fields: [roleId], references: [id])
+  roleId    BigInt
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, schoolId])
+  @@map("userschoolrole")
+}
+
+model EduLevel {
+  id                   Int                   @id @default(autoincrement())
+  code                 String                @unique // EARLY_CHILDHOOD, BASIC
+  nameTh               String
+  standards            QAStandard[]
+  selfAssessmentScopes SelfAssessmentScope[]
+  indicatorScales      IndicatorScale[]
+
+  @@map("edulevel")
+}
+
+model QAStandard {
+  id                       BigInt                    @id @default(autoincrement())
+  level                    EduLevel                  @relation(fields: [levelId], references: [id])
+  levelId                  Int
+  code                     String
+  nameTh                   String
+  sortNo                   Int
+  indicators               QAIndicator[]
+  evaluations              Evaluation[]
+  selfAssessmentIndicators SelfAssessmentIndicator[]
+
+  @@unique([levelId, code])
+  @@map("qastandard")
+}
+
+model QAIndicator {
+  id                       BigInt                    @id @default(autoincrement())
+  standard                 QAStandard                @relation(fields: [standardId], references: [id])
+  standardId               BigInt
+  code                     String
+  nameTh                   String
+  descriptionTh            String?
+  sortNo                   Int
+  subItems                 QASubIndicator[]
+  evidence                 Evidence[]
+  evaluations              Evaluation[]
+  selfAssessmentIndicators SelfAssessmentIndicator[]
+  indicatorScales          IndicatorScale[]
+
+  @@unique([standardId, code])
+  @@map("qaindicator")
+}
+
+model QASubIndicator {
+  id          BigInt      @id @default(autoincrement())
+  indicator   QAIndicator @relation(fields: [indicatorId], references: [id])
+  indicatorId BigInt
+  itemNo      Int
+  textTh      String
+
+  @@unique([indicatorId, itemNo])
+  @@map("qasubindicator")
+}
+
+model Evidence {
+  id                  BigInt                       @id @default(autoincrement())
+  school              School                       @relation(fields: [schoolId], references: [sc_id])
+  schoolId            BigInt
+  indicator           QAIndicator                  @relation(fields: [indicatorId], references: [id])
+  indicatorId         BigInt
+  fiscalYear          Int
+  title               String
+  description         String?
+  status              EvidenceStatus               @default(PENDING)
+  evidenceCode        String?
+  owner               User?                        @relation("Owner", fields: [ownerUserId], references: [id])
+  ownerUserId         BigInt?
+  privacyLevel        PrivacyLevel                 @default(INTERNAL)
+  del                 Boolean                      @default(false)
+  createdBy           BigInt?
+  updatedBy           BigInt?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  files               EvidenceFile[]
+  reviews             EvidenceReview[]
+  selfAssessmentLinks SelfAssessmentEvidenceLink[]
+  externalEvaluations ExternalEvaluation[]
+
+  @@index([schoolId, fiscalYear, indicatorId, status])
+  @@map("evidence")
+}
+
+enum EvidenceStatus {
+  MISSING
+  PENDING
+  READY
+  APPROVED
+  REJECTED
+}
+
+enum PrivacyLevel {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+}
+
+model EvidenceFile {
+  id           BigInt              @id @default(autoincrement())
+  evidence     Evidence            @relation(fields: [evidenceId], references: [id])
+  evidenceId   BigInt
+  school       School              @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  fileName     String
+  mimeType     String?
+  fileSize     Int?
+  storageType  EvidenceStorageType @default(URL)
+  storagePath  String?
+  driveFileId  String?
+  externalUrl  String?
+  thumbnailUrl String?
+  fileUrls     Json?               // สำหรับเก็บ array ของรูปภาพหลายไฟล์ (JSON array)
+  checksumSha1 String?
+  versionNo    Int                 @default(1)
+  uploader     User?               @relation("Uploader", fields: [uploadedBy], references: [id])
+  uploadedBy   BigInt?
+  uploadedAt   DateTime            @default(now())
+  isPrimary    Boolean             @default(false)
+  note         String?
+  del          Boolean             @default(false)
+  reviews      EvidenceReview[]
+
+  @@index([evidenceId])
+  @@index([evidenceId, isPrimary])
+  @@index([schoolId])
+  @@map("evidencefile")
+}
+
+enum StorageType {
+  LOCAL
+  GDRIVE
+  URL
+}
+
+enum EvidenceStorageType {
+  YOUTUBE
+  GDRIVE
+  URL
+  CANVA
+  LINK
+}
+
+model EvidenceReview {
+  id             BigInt        @id @default(autoincrement())
+  evidence       Evidence      @relation(fields: [evidenceId], references: [id])
+  evidenceId     BigInt
+  evidenceFile   EvidenceFile? @relation(fields: [evidenceFileId], references: [id])
+  evidenceFileId BigInt?
+  school         School        @relation(fields: [schoolId], references: [sc_id])
+  schoolId       BigInt
+  reviewer       User          @relation("Reviewer", fields: [reviewerId], references: [id])
+  reviewerId     BigInt
+  reviewStatus   ReviewStatus  @default(NEED_MORE)
+  score          Decimal?      @db.Decimal(5, 2)
+  comment        String?
+  reviewedAt     DateTime      @default(now())
+
+  @@index([evidenceFileId])
+  @@map("evidencereview")
+}
+
+enum ReviewStatus {
+  NEED_MORE
+  ACCEPTED
+  REJECTED
+}
+
+model Evaluation {
+  id          BigInt       @id @default(autoincrement())
+  school      School       @relation(fields: [schoolId], references: [sc_id])
+  schoolId    BigInt
+  fiscalYear  Int
+  standard    QAStandard   @relation(fields: [standardId], references: [id])
+  standardId  BigInt
+  indicator   QAIndicator? @relation(fields: [indicatorId], references: [id])
+  indicatorId BigInt?
+  evalType    EvalType     @default(SELF)
+  score       Decimal?     @db.Decimal(5, 2)
+  comment     String?
+  createdBy   BigInt?
+  createdAt   DateTime     @default(now())
+
+  @@index([schoolId, fiscalYear])
+  @@map("evaluation")
+}
+
+enum EvalType {
+  SELF
+  EXTERNAL
+}
+
+model SarReport {
+  id          BigInt      @id @default(autoincrement())
+  school      School      @relation(fields: [schoolId], references: [sc_id])
+  schoolId    BigInt
+  fiscalYear  Int
+  title       String
+  storageType StorageType
+  storagePath String?
+  driveFileId String?
+  externalUrl String?
+  versionNo   Int         @default(1)
+  status      SarStatus   @default(DRAFT)
+  createdBy   BigInt?
+  updatedBy   BigInt?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("sarreport")
+}
+
+enum SarStatus {
+  DRAFT
+  READY
+  SUBMITTED
+  APPROVED
+}
+
+model ExternalAssessment {
+  id                  BigInt               @id @default(autoincrement())
+  school              School               @relation(fields: [schoolId], references: [sc_id])
+  schoolId            BigInt
+  fiscalYear          Int
+  visitDate           DateTime
+  assessorsNote       String?
+  agendaUrl           String?
+  reportUrl           String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  externalEvaluations ExternalEvaluation[]
+
+  @@map("externalassessment")
+}
+
+model ExternalEvaluation {
+  id                   BigInt              @id @default(autoincrement())
+  evidence             Evidence            @relation(fields: [evidenceId], references: [id])
+  evidenceId           BigInt
+  school               School              @relation(fields: [schoolId], references: [sc_id])
+  schoolId             BigInt
+  externalAssessment   ExternalAssessment? @relation(fields: [externalAssessmentId], references: [id])
+  externalAssessmentId BigInt?
+  evaluatorName        String
+  evaluatorOrg         String?
+  evaluationDate       DateTime            @default(now())
+  score                Decimal?            @db.Decimal(5, 2)
+  strengths            String?
+  weaknesses           String?
+  recommendations      String?
+  attachmentUrl        String?
+  createdBy            BigInt?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@unique([evidenceId, evaluatorName])
+  @@index([evidenceId])
+  @@index([schoolId])
+  @@index([externalAssessmentId])
+  @@map("externalevaluation")
+}
+
+model AuditLog {
+  id          BigInt   @id @default(autoincrement())
+  actor       User?    @relation("Actor", fields: [actorId], references: [id])
+  actorId     BigInt?
+  school      School?  @relation(fields: [schoolId], references: [sc_id])
+  schoolId    BigInt?
+  action      String
+  targetTable String
+  targetId    BigInt?
+  payload     Json?
+  createdAt   DateTime @default(now())
+
+  @@map("auditlog")
+}
+
+/// ส่วนนี้เพิ่มเข้ามาใหม่
+/// ขอบเขตการประเมินตนเอง 1 ชุด = 1 โรงเรียน + 1 ปีงบ + 1 ระดับ (ปฐมวัย/พื้นฐาน)
+model SelfAssessmentScope {
+  id         BigInt   @id @default(autoincrement())
+  school     School   @relation(fields: [schoolId], references: [sc_id])
+  schoolId   BigInt
+  fiscalYear Int // ปีงบประมาณแบบไทย (เช่น 2567)
+  level      EduLevel @relation(fields: [levelId], references: [id])
+  levelId    Int
+
+  indicators SelfAssessmentIndicator[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// 1 โรงเรียน + 1 ปีงบ + 1 ระดับ มี scope ได้ชุดเดียว
+  @@unique([schoolId, fiscalYear, levelId], name: "uq_scope_school_year_level")
+  @@map("selfassessmentscope")
+}
+
+/// ระดับการประเมินต่อตัวชี้วัด (self-assessment ตาม indicator)
+model SelfAssessmentIndicator {
+  id BigInt @id @default(autoincrement())
+
+  scope   SelfAssessmentScope @relation(fields: [scopeId], references: [id])
+  scopeId BigInt
+
+  standard   QAStandard @relation(fields: [standardId], references: [id])
+  standardId BigInt
+
+  indicator   QAIndicator @relation(fields: [indicatorId], references: [id])
+  indicatorId BigInt
+
+  /// เป้าหมายที่ตั้งไว้ (1–5) ตามเกณฑ์ สมศ.
+  targetLevel   Int? @db.TinyInt
+  /// คะแนนประเมินตนเองจริง (1–5)
+  selfScore     Int? @db.TinyInt
+  /// คะแนนประเมินภายนอก (1–5)
+  externalScore Int? @db.TinyInt
+
+  evidenceSummary String? // สรุปหลักฐานสำคัญ
+  strength        String? // จุดเด่น
+  weakness        String? // จุดที่ควรพัฒนา
+  improvementPlan String? // แผนพัฒนา
+  isBestPractice  Boolean @default(false)
+
+  evidenceLinks SelfAssessmentEvidenceLink[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// ตัวชี้วัดหนึ่งถูกประเมินได้ครั้งเดียวใน 1 scope
+  @@unique([scopeId, indicatorId], name: "uq_scope_indicator")
+  @@index([standardId])
+  @@map("selfassessmentindicator")
+}
+
+/// ลิงก์ตัวประเมินตนเอง → หลักฐานที่แนบในระบบ
+model SelfAssessmentEvidenceLink {
+  id BigInt @id @default(autoincrement())
+
+  selfIndicator   SelfAssessmentIndicator @relation(fields: [selfIndicatorId], references: [id])
+  selfIndicatorId BigInt
+
+  evidence   Evidence @relation(fields: [evidenceId], references: [id])
+  evidenceId BigInt
+
+  note String? // เช่น ใช้ประกอบเกณฑ์ระดับ 3 ข้อใดบ้าง
+
+  createdAt DateTime @default(now())
+
+  @@map("selfassessmentevidencelink")
+}
+
+/// เกณฑ์คำอธิบายคะแนน 1–5 ของแต่ละตัวชี้วัด (ตั้งค่าจากเอกสาร สมศ.)
+model IndicatorScale {
+  id BigInt @id @default(autoincrement())
+
+  level   EduLevel @relation(fields: [levelId], references: [id])
+  levelId Int
+
+  indicator   QAIndicator @relation(fields: [indicatorId], references: [id])
+  indicatorId BigInt
+
+  score         Int    @db.TinyInt // 1–5
+  labelTh       String // ชื่อสั้น ๆ เช่น "ต่อเนื่อง ≥ 3 ปี"
+  descriptionTh String // คำอธิบายเต็มตามเกณฑ์ สมศ.
+
+  createdAt DateTime @default(now())
+
+  /// หนึ่ง indicator + หนึ่ง score มี config ได้หนึ่งแถว
+  @@unique([indicatorId, score], name: "uq_indicator_score")
+  @@index([levelId])
+  @@map("indicatorscale")
+}

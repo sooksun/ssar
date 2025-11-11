@@ -1,0 +1,471 @@
+import { auth } from '@/lib/auth/nextauth';
+import { redirect } from 'next/navigation';
+import Image from 'next/image';
+import type { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/db';
+import BarReadinessByStandard, { ReadinessByStandardDatum } from '@/components/dashboard/BarReadinessByStandard';
+import PieStatusDistribution, { StatusSlice } from '@/components/dashboard/PieStatusDistribution';
+import { getEvidenceStatusLabel, getReviewStatusBadgeClass, getReviewStatusLabel } from '@/lib/status';
+import BarEvaluationScoreByStandard, {
+  EvaluationScoreByStandardDatum,
+} from '@/components/dashboard/BarEvaluationScoreByStandard';
+import AreaEvaluationMonthlyTrend, {
+  EvaluationMonthlyTrendDatum,
+} from '@/components/dashboard/AreaEvaluationMonthlyTrend';
+
+export default async function DashboardPage() {
+  const session = await auth();
+
+  if (!session) {
+    redirect('/login');
+  }
+
+  const user = session.user;
+  const roles = user.roles ?? [];
+
+  const schoolIds = roles.map((role) => BigInt(role.schoolId));
+
+  const evidenceWhere: Prisma.EvidenceWhereInput = {
+    schoolId: { in: schoolIds },
+    del: false,
+  };
+
+  // Metrics & datasets
+  const [
+    statusCounts,
+    filesCount,
+    reviewsCount,
+    recentReviews,
+    evidenceForAgg,
+    evaluationRecords,
+    pendingEvidence,
+  ] = await Promise.all([
+    prisma.evidence.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+      where: { schoolId: { in: schoolIds }, del: false },
+    }),
+    prisma.evidenceFile.count({
+      where: { del: false, evidence: evidenceWhere },
+    }),
+    prisma.evidenceReview.count({
+      where: { evidence: evidenceWhere },
+    }),
+    prisma.evidenceReview.findMany({
+      where: { evidence: evidenceWhere },
+      include: {
+        evidence: { select: { id: true, evidenceCode: true, title: true } },
+        reviewer: { select: { fullName: true } },
+      },
+      orderBy: { reviewedAt: 'desc' },
+      take: 10,
+    }),
+    prisma.evidence.findMany({
+      where: { schoolId: { in: schoolIds }, del: false },
+      include: {
+        indicator: {
+          include: { standard: true },
+        },
+      },
+    }),
+    prisma.externalEvaluation.findMany({
+      where: { schoolId: { in: schoolIds } },
+      select: {
+        score: true,
+        evaluationDate: true,
+        evidenceId: true,
+        evidence: {
+          select: {
+            indicator: {
+              select: {
+                standard: {
+                  select: { code: true, nameTh: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.evidence.findMany({
+      where: {
+        schoolId: { in: schoolIds },
+        del: false,
+        status: { in: ['PENDING', 'MISSING'] },
+      },
+      include: {
+        indicator: {
+          select: {
+            code: true,
+            standard: { select: { code: true, nameTh: true } },
+          },
+        },
+        school: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 10,
+    }),
+    ]);
+
+  const totalEvidence = statusCounts.reduce((sum, s) => sum + (s._count?._all || 0), 0);
+  const missingCount = statusCounts.find((s) => s.status === 'MISSING')?._count?._all ?? 0;
+  const readyCount = statusCounts.find((s) => s.status === 'READY')?._count?._all ?? 0;
+  const approvedCount = statusCounts.find((s) => s.status === 'APPROVED')?._count?._all ?? 0;
+  const pendingCount = statusCounts.find((s) => s.status === 'PENDING')?._count?._all ?? 0;
+  const rejectedCount = statusCounts.find((s) => s.status === 'REJECTED')?._count?._all ?? 0;
+
+  // Charts data
+  const byStandardMap = new Map<string, { ready: number; total: number }>();
+  for (const ev of evidenceForAgg) {
+    const code = ev.indicator?.standard?.code || 'N/A';
+    const cur = byStandardMap.get(code) || { ready: 0, total: 0 };
+    cur.total += 1;
+    if (ev.status === 'READY') cur.ready += 1;
+    byStandardMap.set(code, cur);
+  }
+  const readinessData: ReadinessByStandardDatum[] = Array.from(byStandardMap.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([standardCode, v]) => ({ standardCode, ready: v.ready, total: v.total }));
+
+  const statusPie: StatusSlice[] = [
+    { status: 'APPROVED', label: getEvidenceStatusLabel('APPROVED'), value: approvedCount },
+    { status: 'READY', label: getEvidenceStatusLabel('READY'), value: readyCount },
+    { status: 'PENDING', label: getEvidenceStatusLabel('PENDING'), value: pendingCount },
+    { status: 'REJECTED', label: getEvidenceStatusLabel('REJECTED'), value: rejectedCount },
+    { status: 'MISSING', label: getEvidenceStatusLabel('MISSING'), value: missingCount },
+  ];
+
+  const totalEvaluations = evaluationRecords.length;
+  const scoredEvaluations = evaluationRecords.filter((ev) => ev.score !== null && ev.score !== undefined);
+  const evaluationAverageScore =
+    scoredEvaluations.length > 0
+      ? scoredEvaluations.reduce((sum, ev) => sum + Number(ev.score), 0) / scoredEvaluations.length
+      : null;
+
+  const evaluationByStandardMap = new Map<
+    string,
+    { standardName: string; total: number; scored: number; sumScore: number }
+  >();
+  for (const ev of evaluationRecords) {
+    const standardCode = ev.evidence?.indicator?.standard?.code || 'ไม่ทราบ';
+    const standardName = ev.evidence?.indicator?.standard?.nameTh || 'ไม่ระบุ';
+    const current = evaluationByStandardMap.get(standardCode) || {
+      standardName,
+      total: 0,
+      scored: 0,
+      sumScore: 0,
+    };
+    current.total += 1;
+    if (ev.score !== null && ev.score !== undefined) {
+      current.scored += 1;
+      current.sumScore += Number(ev.score);
+    }
+    evaluationByStandardMap.set(standardCode, current);
+  }
+
+  const evaluationScoreByStandardData: EvaluationScoreByStandardDatum[] = Array.from(
+    evaluationByStandardMap.entries(),
+  )
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([standardCode, value]) => ({
+      standardCode,
+      standardName: value.standardName,
+      evaluationCount: value.total,
+      averageScore: value.scored > 0 ? Number((value.sumScore / value.scored).toFixed(2)) : 0,
+    }));
+
+  const now = new Date();
+  const monthKeys: { key: string; label: string }[] = [];
+  for (let i = 5; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('th-TH', { month: 'short', year: '2-digit' });
+    monthKeys.push({ key, label });
+  }
+  const monthMap = new Map<
+    string,
+    { label: string; evaluations: number; sumScore: number; scored: number }
+  >(monthKeys.map((item) => [item.key, { label: item.label, evaluations: 0, sumScore: 0, scored: 0 }]));
+  const minDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
+  for (const ev of evaluationRecords) {
+    const date = new Date(ev.evaluationDate);
+    if (date < minDate) continue;
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const bucket = monthMap.get(key);
+    if (!bucket) continue;
+    bucket.evaluations += 1;
+    if (ev.score !== null && ev.score !== undefined) {
+      bucket.sumScore += Number(ev.score);
+      bucket.scored += 1;
+    }
+  }
+
+  const evaluationMonthlyTrendData: EvaluationMonthlyTrendDatum[] = monthKeys.map(({ key, label }) => {
+    const bucket = monthMap.get(key)!;
+    return {
+      monthLabel: label,
+      evaluationCount: bucket.evaluations,
+      averageScore: bucket.scored > 0 ? Number((bucket.sumScore / bucket.scored).toFixed(2)) : 0,
+    };
+  });
+
+  const quickLinkCards = [
+    {
+      title: 'หลักฐาน',
+      description: 'จัดการหลักฐานการประกันคุณภาพ',
+      href: '/evidence',
+      gradient: 'from-violet-50 via-white to-white',
+      border: 'border-violet-200',
+      text: 'text-violet-700',
+      iconSrc: '/evidance_icon.png',
+      iconAlt: 'ไอคอนจัดการหลักฐาน',
+    },
+    {
+      title: 'รายงานความพร้อม',
+      description: 'ดูความพร้อมหลักฐานต่อมาตรฐาน',
+      href: '/reports/readiness',
+      gradient: 'from-sky-50 via-white to-white',
+      border: 'border-sky-200',
+      text: 'text-sky-700',
+      iconSrc: '/percent_complete_icon.png',
+      iconAlt: 'ไอคอนรายงานความพร้อม',
+    },
+    {
+      title: 'รายการ Missing',
+      description: 'ดูรายการหลักฐานที่ยังขาด',
+      href: '/reports/missing',
+      gradient: 'from-rose-50 via-white to-white',
+      border: 'border-rose-200',
+      text: 'text-rose-700',
+      iconSrc: '/loss_doc_icon.png',
+      iconAlt: 'ไอคอนรายการหลักฐานที่ยังขาด',
+    },
+  ];
+
+  const kpiCards = [
+    {
+      label: 'หลักฐานทั้งหมด',
+      value: totalEvidence,
+      gradient: 'from-fuchsia-50 via-white to-white',
+      border: 'border-fuchsia-200',
+      text: 'text-fuchsia-700',
+    },
+    {
+      label: getEvidenceStatusLabel('READY'),
+      value: readyCount,
+      gradient: 'from-emerald-50 via-white to-white',
+      border: 'border-emerald-200',
+      text: 'text-emerald-700',
+    },
+    {
+      label: 'ไฟล์ทั้งหมด',
+      value: filesCount,
+      gradient: 'from-amber-50 via-white to-white',
+      border: 'border-amber-200',
+      text: 'text-amber-700',
+    },
+    {
+      label: 'รีวิวทั้งหมด',
+      value: reviewsCount,
+      gradient: 'from-indigo-50 via-white to-white',
+      border: 'border-indigo-200',
+      text: 'text-indigo-700',
+    },
+    {
+      label: 'การประเมินภายใน',
+      value: totalEvaluations,
+      note:
+        evaluationAverageScore !== null
+          ? `ค่าเฉลี่ย ${evaluationAverageScore.toFixed(2)} / 5`
+          : 'ยังไม่มีข้อมูล',
+      gradient: 'from-purple-50 via-white to-white',
+      border: 'border-purple-200',
+      text: 'text-purple-700',
+    },
+  ];
+
+  return (
+    <div className="container mx-auto p-6 space-y-8">
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">ภาพรวมระบบศูนย์กลางหลักฐาน</p>
+        </div>
+      </div>
+
+      {/* Quick links */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">เมนูหลัก</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {quickLinkCards.map((card) => (
+            <a
+              key={card.href}
+              href={card.href}
+          className={`relative rounded-xl border p-6 shadow-sm transition-shadow hover:shadow-md bg-gradient-to-br ${card.gradient} ${card.border}`}
+            >
+          <div className="relative z-10">
+            <h3 className={`font-semibold ${card.text}`}>{card.title}</h3>
+            <p className="text-sm text-muted-foreground mt-1">{card.description}</p>
+          </div>
+              <Image
+                src={card.iconSrc}
+                alt={card.iconAlt}
+                width={126}
+                height={126}
+                className="pointer-events-none select-none absolute -top-8 -right-4 h-28 w-28 opacity-95 drop-shadow-md"
+              />
+            </a>
+          ))}
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        {kpiCards.map((card) => (
+          <div
+            key={card.label}
+            className={`rounded-xl border p-6 shadow-sm bg-gradient-to-br ${card.gradient} ${card.border}`}
+          >
+            <p className={`text-sm font-medium ${card.text}`}>{card.label}</p>
+            <p className="mt-2 text-3xl font-bold text-foreground">{card.value}</p>
+            {card.note && <p className="text-xs text-muted-foreground">{card.note}</p>}
+          </div>
+        ))}
+      </div>
+
+      {/* Charts */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="rounded-lg border bg-card p-6 lg:col-span-2">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">ความพร้อมตามมาตรฐาน</h2>
+          </div>
+          <BarReadinessByStandard data={readinessData} />
+        </div>
+        <div className="rounded-lg border bg-card p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">สัดส่วนสถานะหลักฐาน</h2>
+          </div>
+          <PieStatusDistribution data={statusPie} />
+        </div>
+      </div>
+
+      {/* Internal Evaluation Insights */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="rounded-lg border bg-card p-6 lg:col-span-2">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">ค่าเฉลี่ยคะแนนการประเมินภายในต่อมาตรฐาน</h2>
+          </div>
+          {evaluationScoreByStandardData.length === 0 ? (
+            <p className="text-muted-foreground">ยังไม่มีข้อมูลการประเมินภายใน</p>
+          ) : (
+            <BarEvaluationScoreByStandard data={evaluationScoreByStandardData} />
+          )}
+        </div>
+        <div className="rounded-lg border bg-card p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">แนวโน้มการประเมิน (6 เดือนล่าสุด)</h2>
+          </div>
+          {evaluationMonthlyTrendData.every((item) => item.evaluationCount === 0) ? (
+            <p className="text-muted-foreground">ยังไม่มีการประเมินในช่วง 6 เดือนล่าสุด</p>
+          ) : (
+            <AreaEvaluationMonthlyTrend data={evaluationMonthlyTrendData} />
+          )}
+        </div>
+      </div>
+
+      {/* Recent reviews */}
+      <div className="rounded-lg border bg-card p-6">
+        <h2 className="text-lg font-semibold mb-4">รีวิวล่าสุด</h2>
+        {recentReviews.length === 0 ? (
+          <p className="text-muted-foreground">ยังไม่มีรีวิว</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-muted-foreground">
+                <tr className="border-b">
+                  <th className="py-2 pr-4">หลักฐาน</th>
+                  <th className="py-2 pr-4">ผู้รีวิว</th>
+                  <th className="py-2 pr-4">สถานะรีวิว</th>
+                  <th className="py-2 pr-4">คะแนน</th>
+                  <th className="py-2">วันที่</th>
+                </tr>
+              </thead>
+              <tbody>
+              {recentReviews.map((r) => (
+                <tr key={r.id.toString()} className="border-b last:border-0">
+                    <td className="py-2 pr-4">
+                      <a href={`/evidence/${r.evidence.id}`} className="hover:underline">
+                        {r.evidence.evidenceCode}
+                      </a>
+                      <div className="text-muted-foreground">{r.evidence.title}</div>
+                    </td>
+                    <td className="py-2 pr-4">{r.reviewer.fullName}</td>
+                    <td className="py-2 pr-4">
+                      <span className={`rounded-full px-2 py-1 text-xs font-medium ${getReviewStatusBadgeClass(r.reviewStatus)}`}>
+                        {getReviewStatusLabel(r.reviewStatus)}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4">{r.score != null ? r.score.toString() : '-'}</td>
+                    <td className="py-2">{new Date(r.reviewedAt).toLocaleDateString('th-TH')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Pending items */}
+      <div className="rounded-lg border bg-card p-6">
+        <h2 className="text-lg font-semibold mb-4">หลักฐานที่ยังต้องติดตาม</h2>
+        {pendingEvidence.length === 0 ? (
+          <p className="text-muted-foreground">ไม่มีหลักฐานสถานะ PENDING หรือ MISSING ในขณะนี้</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-muted-foreground">
+                <tr className="border-b">
+                  <th className="py-2 pr-4">หลักฐาน</th>
+                  <th className="py-2 pr-4">โรงเรียน</th>
+                  <th className="py-2 pr-4">ตัวชี้วัด</th>
+                  <th className="py-2 pr-4">สถานะ</th>
+                  <th className="py-2">อัปเดตล่าสุด</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingEvidence.map((item) => (
+                  <tr key={item.id.toString()} className="border-b last:border-0">
+                    <td className="py-2 pr-4">
+                      <a href={`/evidence/${item.id}`} className="font-medium hover:underline">
+                        {item.evidenceCode ?? item.title}
+                      </a>
+                      <div className="text-muted-foreground text-xs">{item.title}</div>
+                    </td>
+                    <td className="py-2 pr-4 text-xs text-muted-foreground">{item.school.name}</td>
+                    <td className="py-2 pr-4 text-xs text-muted-foreground">
+                      {item.indicator?.standard?.code}-{item.indicator?.code}
+                    </td>
+                    <td className="py-2 pr-4">
+                      <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
+                        {getEvidenceStatusLabel(item.status)}
+                      </span>
+                    </td>
+                    <td className="py-2 text-xs text-muted-foreground">
+                      {new Date(item.updatedAt).toLocaleString('th-TH')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+

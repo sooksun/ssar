@@ -1,0 +1,76 @@
+name: trusting_kilby
+services:
+  trusting_kilby:
+    cpu_shares: 90
+    command:
+      - npm
+      - start
+    container_name: NodeJSApp
+    deploy:
+      resources:
+        limits:
+          memory: 7940M
+    environment:
+      - NODE_VERSION=24.9.0
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - YARN_VERSION=1.22.22
+    hostname: NodeJSApp
+    image: nodemypp:latest
+    labels:
+      icon: https://icon.casaos.io/main/all/nodemypp.png
+    ports:
+      - target: 3000
+        published: "3456"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /DATA/Myapp/docker/nodejs
+        target: /usr/src/app
+    x-casaos:
+      envs:
+        - container: PATH
+          description:
+            en_us: ""
+        - container: NODE_VERSION
+          description:
+            en_us: ""
+        - container: YARN_VERSION
+          description:
+            en_us: ""
+      image: ""
+      ports:
+        - container: "3000"
+          description:
+            en_us: ""
+    devices: []
+    cap_add: []
+    network_mode: bridge
+    privileged: false
+x-casaos:
+  architectures:
+    - amd64
+  author: CasaOS User
+  category: unknown
+  description:
+    en_us: ""
+  developer: unknown
+  hostname: ""
+  icon: https://icon.casaos.io/main/all/nodemypp.png
+  image: null
+  index: /
+  is_uncontrolled: false
+  main: trusting_kilby
+  port_map: "3456"
+  scheme: http
+  store_app_id: trusting_kilby
+  tagline:
+    en_us: This is a compose app converted from a legacy app (CasaOS v0.4.3 or
+      earlier)
+  thumbnail: ""
+  tips:
+    custom: This is a compose app converted from a legacy app (CasaOS v0.4.3 or
+      earlier)
+  title:
+    custom: NodeJSApp
+    en_us: trusting_kilby
