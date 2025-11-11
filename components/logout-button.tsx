@@ -20,9 +20,10 @@ export default function LogoutButton() {
       className="gap-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
       onClick={handleLogout}
       disabled={isPending}
+      title={isPending ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
+      aria-label={isPending ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
     >
       <LogOut className="h-4 w-4" />
-      {isPending ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
     </Button>
   );
 }

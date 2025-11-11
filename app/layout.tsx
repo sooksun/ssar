@@ -39,8 +39,8 @@ export default async function RootLayout({
                 className="h-25 w-[657px] max-w-full object-contain"
               />
               {session && (
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
+                <div className="flex items-center gap-4 pr-[7px]">
+                  <div className="hidden text-right md:block">
                     <p className="text-sm font-medium">{session.user?.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {session.user?.primarySchoolName || ''}

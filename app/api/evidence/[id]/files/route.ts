@@ -9,6 +9,7 @@ import { mkdir, writeFile } from 'fs/promises';
 import {
   isImageFile,
   isVideoFile,
+  isPdfFile,
   isAllowedFileType,
   describeAllowedFileTypes,
 } from '@/lib/file-types';
@@ -104,8 +105,9 @@ export async function POST(
       // ตรวจสอบประเภทไฟล์
       const imageFiles = uploadList.filter((file) => isImageFile(file.name, file.type));
       const videoFiles = uploadList.filter((file) => isVideoFile(file.name, file.type));
+      const pdfFiles = uploadList.filter((file) => isPdfFile(file.name, file.type));
       const otherFiles = uploadList.filter(
-        (file) => !isImageFile(file.name, file.type) && !isVideoFile(file.name, file.type)
+        (file) => !isImageFile(file.name, file.type) && !isVideoFile(file.name, file.type) && !isPdfFile(file.name, file.type)
       );
 
       // ไม่สามารถอัปโหลดรูปภาพและวิดีโอพร้อมกันได้
@@ -146,7 +148,7 @@ export async function POST(
         }
       }
 
-      // ตรวจสอบไฟล์ประเภทอื่น (PDF)
+      // ตรวจสอบไฟล์ประเภทอื่น
       const invalidFile = otherFiles.find((file) => !isAllowedFileType(file.name, file.type));
       if (invalidFile) {
         return NextResponse.json(
@@ -155,9 +157,20 @@ export async function POST(
         );
       }
 
-      // แยก folder สำหรับรูปภาพและวิดีโอ
-      const isImageUpload = imageFiles.length > 0;
-      const folderName = isImageUpload ? 'images' : 'videos';
+      // แยก folder ตามประเภทไฟล์
+      let folderName: string;
+      if (imageFiles.length > 0) {
+        folderName = 'images';
+      } else if (videoFiles.length > 0) {
+        folderName = 'videos';
+      } else if (pdfFiles.length > 0) {
+        // PDF เก็บใน folder 'files'
+        folderName = 'files';
+      } else {
+        // ไฟล์อื่นๆ เก็บใน folder 'files'
+        folderName = 'files';
+      }
+
       const uploadDir = path.join(
         process.cwd(),
         'public',
@@ -168,10 +181,16 @@ export async function POST(
       );
       await mkdir(uploadDir, { recursive: true });
 
-      const filesToProcess = isImageUpload ? imageFiles : videoFiles.length > 0 ? videoFiles : otherFiles;
+      const filesToProcess = imageFiles.length > 0 
+        ? imageFiles 
+        : videoFiles.length > 0 
+          ? videoFiles 
+          : pdfFiles.length > 0 
+            ? pdfFiles 
+            : otherFiles;
 
       // กรณีรูปภาพ: เก็บหลายไฟล์เป็น array JSON ใน record เดียว
-      if (isImageUpload && imageFiles.length > 0) {
+      if (imageFiles.length > 0) {
         const timestamp = Date.now();
         const fileUrlsArray: Array<{ url: string; fileName: string; mimeType?: string; fileSize?: number }> = [];
         let thumbnailUrl: string | undefined;

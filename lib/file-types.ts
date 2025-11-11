@@ -68,6 +68,17 @@ export function isVideoFile(fileName?: string | null, mimeType?: string | null) 
   return false;
 }
 
+export function isPdfFile(fileName?: string | null, mimeType?: string | null) {
+  const ext = extractExtension(fileName);
+  if (ext === 'pdf') {
+    return true;
+  }
+  if (mimeType && mimeType.toLowerCase() === 'application/pdf') {
+    return true;
+  }
+  return false;
+}
+
 export function describeAllowedFileTypes() {
   return 'PDF, JPG, JPEG, PNG, MP4, WEBM, MOV, AVI';
 }

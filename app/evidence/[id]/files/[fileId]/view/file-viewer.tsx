@@ -7,7 +7,10 @@ import { isVideoFile } from '@/lib/file-types';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 type FileViewerProps = {
-  file: EvidenceFile & {
+  file: Partial<EvidenceFile> & {
+    id: bigint;
+    fileName: string;
+    storageType: string;
     evidence: {
       school: {
         sc_id: bigint;
@@ -23,6 +26,8 @@ type FileViewerProps = {
         nameTh: string;
       };
     };
+    fileUrls?: any; // JsonValue from Prisma
+    thumbnailUrl?: string | null;
   };
 };
 

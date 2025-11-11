@@ -128,6 +128,16 @@ docker-compose exec web npx prisma migrate dev
 docker-compose exec web npm run db:seed
 ```
 
+ดูรายละเอียดเพิ่มเติมใน [README-DOCKER.md](./README-DOCKER.md)
+
+### ติดตั้งผ่าน CasaOS (ใช้ MariaDB ภายนอก)
+
+สำหรับการติดตั้งผ่าน CasaOS โดยใช้ Dockerfile และเชื่อมต่อกับ MariaDB ที่มีอยู่แล้ว ดูคู่มือละเอียดใน [README-CASAOS.md](./README-CASAOS.md)
+
+### ติดตั้งบน Ubuntu Server (Native - ไม่ใช้ Docker)
+
+สำหรับการติดตั้งบน Ubuntu Server โดยไม่ใช้ Docker ดูคู่มือละเอียดใน [README-UBUNTU.md](./README-UBUNTU.md)
+
 ## คำสั่งที่สำคัญ
 
 ### Development
