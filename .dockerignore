@@ -1,0 +1,48 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build
+.next
+out
+build
+dist
+
+# Env (ให้ส่งผ่าน docker-compose หรือ host)
+.env
+.env.*
+!.env.example
+
+# Git / IDE
+.git
+.gitignore
+.cursor
+.vscode
+*.md
+!README.md
+
+# Tests / misc
+coverage
+.nyc_output
+*.test.ts
+*.test.tsx
+*.spec.ts
+__tests__
+.playwright
+e2e
+
+# Uploads (บน server ใช้ volume แทน)
+public/uploads
+
+# อื่นๆ
+.DS_Store
+*.log
+*.zip
+*.sql
+*.xlsx
+docref
+Extracted*
