@@ -167,7 +167,7 @@ export default async function EvidencePage({
                       {item.indicator.standard.nameTh}
                     </span>
                     <span>ตัวชี้วัด: {item.indicator.code}</span>
-                    <span>ปีงบประมาณ: {item.fiscalYear}</span>
+                    <span>ปีการศึกษา: {item.fiscalYear}</span>
                     {item.owner && <span>เจ้าของ: {item.owner.fullName}</span>}
                   </div>
                   {item.description && (

@@ -5,6 +5,7 @@ import { canAccessSchool } from '@/lib/auth/scoping';
 import { prisma } from '@/lib/db';
 import { AUDIT_ACTIONS, logAction } from '@/lib/audit';
 import path from 'path';
+import { randomUUID } from 'crypto';
 import { mkdir, writeFile } from 'fs/promises';
 import {
   isImageFile,
@@ -12,8 +13,18 @@ import {
   isPdfFile,
   isAllowedFileType,
   describeAllowedFileTypes,
+  extensionMatchesMime,
+  MAX_FILE_SIZE_BYTES,
+  VIDEO_MAX_SIZE_MB,
 } from '@/lib/file-types';
+import { processImage } from '@/lib/image-process';
 import { generateVideoThumbnail } from '@/lib/video-thumbnail';
+
+function getExtension(fileName: string): string {
+  const lastDot = fileName.lastIndexOf('.');
+  if (lastDot === -1 || lastDot === fileName.length - 1) return '';
+  return fileName.slice(lastDot + 1).toLowerCase();
+}
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for large file uploads
@@ -140,9 +151,9 @@ export async function POST(
       if (videoFiles.length === 1) {
         const videoFile = videoFiles[0];
         const videoSizeMB = videoFile.size / (1024 * 1024);
-        if (videoSizeMB > 1000) {
+        if (videoSizeMB > VIDEO_MAX_SIZE_MB) {
           return NextResponse.json(
-            { success: false, error: 'ขนาดวิดีโอต้องไม่เกิน 1000 MB' },
+            { success: false, error: `ขนาดวิดีโอต้องไม่เกิน ${VIDEO_MAX_SIZE_MB} MB` },
             { status: 400 }
           );
         }
@@ -153,6 +164,32 @@ export async function POST(
       if (invalidFile) {
         return NextResponse.json(
           { success: false, error: `ไฟล์ต้องเป็น ${describeAllowedFileTypes()}` },
+          { status: 400 }
+        );
+      }
+
+      // PRD: ตรวจนามสกุลให้ตรงกับ MIME
+      const allFiles = [...imageFiles, ...videoFiles, ...pdfFiles, ...otherFiles];
+      const mimeMismatch = allFiles.find((file) => !extensionMatchesMime(file.name, file.type));
+      if (mimeMismatch) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `นามสกุลไฟล์ไม่ตรงกับประเภทไฟล์: ${mimeMismatch.name}`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // PRD: ขนาดสูงสุด 10 MB สำหรับไฟล์ทั่วไป (วิดีโอใช้เกณฑ์แยก)
+      const nonVideoFiles = [...imageFiles, ...pdfFiles, ...otherFiles];
+      const oversize = nonVideoFiles.find((file) => file.size > MAX_FILE_SIZE_BYTES);
+      if (oversize) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `ขนาดไฟล์ต้องไม่เกิน 10 MB: ${oversize.name}`,
+          },
           { status: 400 }
         );
       }
@@ -189,32 +226,40 @@ export async function POST(
             ? pdfFiles 
             : otherFiles;
 
-      // กรณีรูปภาพ: เก็บหลายไฟล์เป็น array JSON ใน record เดียว
+      // กรณีรูปภาพ: เก็บหลายไฟล์เป็น array JSON ใน record เดียว (PRD: ชื่อมาตรฐาน UUID, resize 1028px + บีบอัด)
       if (imageFiles.length > 0) {
-        const timestamp = Date.now();
         const fileUrlsArray: Array<{ url: string; fileName: string; mimeType?: string; fileSize?: number }> = [];
         let thumbnailUrl: string | undefined;
 
-        // อัปโหลดรูปภาพทั้งหมด
         for (let index = 0; index < imageFiles.length; index += 1) {
           const f = imageFiles[index];
           const arrayBuffer = await f.arrayBuffer();
           const buffer = Buffer.from(arrayBuffer);
-          const safeName = `${timestamp}-${index + 1}-${f.name}`.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]/g, '_');
-          const filePath = path.join(uploadDir, safeName);
-          await writeFile(filePath, buffer);
+          const ext = getExtension(f.name) || 'jpg';
+          const standardName = `${randomUUID()}.${ext}`;
+          const filePath = path.join(uploadDir, standardName);
 
-          const urlPath = `/uploads/evidence/${evId.toString()}/${folderName}/${safeName}`;
-          fileUrlsArray.push({
-            url: urlPath,
-            fileName: f.name,
-            mimeType: f.type || undefined,
-            fileSize: typeof f.size === 'number' ? Math.round(f.size) : undefined,
-          });
+          const processed = await processImage(buffer, f.type || 'image/jpeg');
+          if (processed) {
+            await writeFile(filePath, processed.buffer);
+            fileUrlsArray.push({
+              url: `/uploads/evidence/${evId.toString()}/${folderName}/${standardName}`,
+              fileName: f.name,
+              mimeType: processed.mimeType,
+              fileSize: processed.buffer.length,
+            });
+          } else {
+            await writeFile(filePath, buffer);
+            fileUrlsArray.push({
+              url: `/uploads/evidence/${evId.toString()}/${folderName}/${standardName}`,
+              fileName: f.name,
+              mimeType: f.type || undefined,
+              fileSize: typeof f.size === 'number' ? Math.round(f.size) : undefined,
+            });
+          }
 
-          // ใช้รูปแรกเป็น thumbnail
           if (index === 0) {
-            thumbnailUrl = urlPath;
+            thumbnailUrl = `/uploads/evidence/${evId.toString()}/${folderName}/${standardName}`;
           }
         }
 
@@ -222,13 +267,12 @@ export async function POST(
         const baseName = raw.fileName || (imageFiles.length > 1 ? `รูปภาพ ${imageFiles.length} ไฟล์` : path.parse(imageFiles[0].name).name);
         const finalName = baseName.trim();
 
-        // ยกเลิก primary ของรูปอื่นทั้งหมด
-        await prisma.evidenceFile.updateMany({
-          where: { evidenceId: evId },
-          data: { isPrimary: false },
-        });
+        // สำหรับรูปภาพหลายรูป: ใช้รูปแรกเป็น thumbnail ของกลุ่มเท่านั้น
+        // ไม่ตั้ง isPrimary อัตโนมัติ (ให้ user เป็นผู้กำหนดเอง)
+        // ยกเลิก primary ของรูปอื่นทั้งหมด (ถ้ามีการตั้ง primary ใหม่)
+        // หมายเหตุ: ไม่ต้องยกเลิก primary ของรูปอื่น เพราะเราไม่ตั้ง primary อัตโนมัติ
 
-        // สร้าง EvidenceFile record เดียวสำหรับกลุ่มรูปภาพ
+        const totalStoredSize = fileUrlsArray.reduce((sum, u) => sum + (u.fileSize ?? 0), 0);
         const created = await prisma.evidenceFile.create({
           data: {
             evidenceId: evId,
@@ -238,9 +282,9 @@ export async function POST(
             externalUrl: thumbnailUrl,
             thumbnailUrl: thumbnailUrl,
             fileUrls: fileUrlsArray,
-            mimeType: imageFiles[0].type || undefined,
-            fileSize: imageFiles.reduce((sum, f) => sum + (typeof f.size === 'number' ? f.size : 0), 0),
-            isPrimary: true,
+            mimeType: fileUrlsArray[0]?.mimeType ?? imageFiles[0].type ?? undefined,
+            fileSize: totalStoredSize,
+            isPrimary: false, // ไม่ตั้ง primary อัตโนมัติ ให้ user เป็นผู้กำหนดเอง
             note: raw.note,
             uploadedBy: BigInt(user.id),
           },
@@ -256,7 +300,7 @@ export async function POST(
             evidenceId: evId.toString(),
             fileName: finalName,
             storageType: 'URL',
-            isPrimary: true,
+            isPrimary: false, // ไม่ตั้ง primary อัตโนมัติ
             fileCount: imageFiles.length,
             fileType: 'image',
           }
@@ -271,17 +315,17 @@ export async function POST(
         });
       }
 
-      // กรณีวิดีโอหรือไฟล์อื่น: เก็บทีละไฟล์
+      // กรณีวิดีโอหรือไฟล์อื่น: เก็บทีละไฟล์ (PRD: ชื่อมาตรฐาน UUID + extension)
       for (let index = 0; index < filesToProcess.length; index += 1) {
         const f = filesToProcess[index];
         const arrayBuffer = await f.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
-        const timestamp = Date.now() + index;
-        const safeName = `${timestamp}-${f.name}`.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]/g, '_');
-        const filePath = path.join(uploadDir, safeName);
+        const ext = getExtension(f.name) || 'bin';
+        const standardName = `${randomUUID()}.${ext}`;
+        const filePath = path.join(uploadDir, standardName);
         await writeFile(filePath, buffer);
 
-        const urlPath = `/uploads/evidence/${evId.toString()}/${folderName}/${safeName}`;
+        const urlPath = `/uploads/evidence/${evId.toString()}/${folderName}/${standardName}`;
         const baseName = raw.fileName
           ? filesToProcess.length > 1
             ? `${raw.fileName}-${index + 1}`
@@ -289,10 +333,9 @@ export async function POST(
           : path.parse(f.name).name;
         const finalName = baseName.trim();
 
-        // สร้าง thumbnail สำหรับวิดีโอ (capture frame ที่ 10 วินาที)
         let thumbnailUrl: string | undefined;
         if (isVideoFile(f.name, f.type)) {
-          const thumbnailName = `${timestamp}-thumbnail.jpg`;
+          const thumbnailName = `${randomUUID()}-thumbnail.jpg`;
           const thumbnailPath = path.join(uploadDir, thumbnailName);
           const thumbnailGenerated = await generateVideoThumbnail(filePath, thumbnailPath, 10);
           if (thumbnailGenerated) {

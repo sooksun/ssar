@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth/nextauth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
-import { thaiFiscalYear } from '@/lib/evidence';
+import { thaiAcademicYear } from '@/lib/evidence';
 
 type SearchParams = {
   schoolId?: string;
@@ -50,11 +50,11 @@ export default async function EvaluationHubPage({
     orderBy: { name: 'asc' },
   });
 
-  const fiscalYearNow = thaiFiscalYear();
-  const selectedFiscalYear =
+  const academicYearNow = thaiAcademicYear();
+  const selectedAcademicYear =
     params?.fiscalYear && !Number.isNaN(Number(params.fiscalYear))
       ? Number(params.fiscalYear)
-      : fiscalYearNow;
+      : academicYearNow;
 
   const selectedSchoolId =
     params?.schoolId && accessibleSchoolIds.includes(params.schoolId)
@@ -70,7 +70,7 @@ export default async function EvaluationHubPage({
     prisma.evaluation.findMany({
       where: {
         schoolId: { in: targetSchools },
-        fiscalYear: selectedFiscalYear,
+        fiscalYear: selectedAcademicYear,
       },
       include: {
         school: { select: { sc_id: true, name: true } },
@@ -82,10 +82,10 @@ export default async function EvaluationHubPage({
     prisma.externalEvaluation.findMany({
       where: {
         schoolId: { in: targetSchools },
-        evidence: {
-          fiscalYear: selectedFiscalYear,
-          del: false,
-        },
+          evidence: {
+            fiscalYear: selectedAcademicYear,
+            del: false,
+          },
       },
       include: {
         evidence: {
@@ -144,7 +144,7 @@ export default async function EvaluationHubPage({
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">ศูนย์รวมการประเมิน</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            ภาพรวมการประเมินตนเองและการประเมินภายนอกในปีงบประมาณ {selectedFiscalYear}
+            ภาพรวมการประเมินตนเองและการประเมินภายนอกในปีการศึกษา {selectedAcademicYear}
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -186,7 +186,7 @@ export default async function EvaluationHubPage({
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-slate-600" htmlFor="eval-fiscal-year">
-            ปีงบประมาณ
+            ปีการศึกษา
           </label>
           <input
             id="eval-fiscal-year"
@@ -194,7 +194,7 @@ export default async function EvaluationHubPage({
             type="number"
             min={2500}
             max={3000}
-            defaultValue={selectedFiscalYear}
+            defaultValue={selectedAcademicYear}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </div>

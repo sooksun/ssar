@@ -30,7 +30,7 @@
 ### Layout
 - Form แบบ single page
 - Dependent dropdowns: level → standard → indicator
-- Auto-filled fields: fiscal_year, evidence_code (หลังเลือก indicator)
+- Auto-filled fields: academic_year, evidence_code (หลังเลือก indicator)
 
 ### Fields
 
@@ -64,10 +64,10 @@
 - **Behavior**: เมื่อเลือก indicator → auto-generate evidence_code
 - **Disabled**: จนกว่าจะเลือก standard
 
-#### 5. Fiscal Year
+#### 5. Academic Year
 - **Type**: Number input (read-only)
-- **Label**: "ปีงบประมาณ"
-- **Default**: คำนวณจาก `thaiFiscalYear()`
+- **Label**: "ปีการศึกษา"
+- **Default**: คำนวณจาก `thaiAcademicYear()`
 - **Auto-filled**: Yes
 
 #### 6. Evidence Code
@@ -194,8 +194,8 @@
 - **Title**: "ความพร้อมหลักฐานต่อมาตรฐาน"
 - **X-axis**: มาตรฐาน (Standard name)
 - **Y-axis**: เปอร์เซ็นต์ (0-100%)
-- **Data**: ตาม school และ fiscal year ที่เลือก
-- **Filter**: School (dropdown), Fiscal Year (dropdown)
+- **Data**: ตาม school และ academic year ที่เลือก
+- **Filter**: School (dropdown), Academic Year (dropdown)
 - **Colors**: 
   - 0-50%: red
   - 51-75%: yellow
@@ -234,7 +234,7 @@
 
 ### Filter Bar
 - **School**: Dropdown (ตาม UserSchoolRole)
-- **Fiscal Year**: Dropdown (ปีงบประมาณ)
+- **Academic Year**: Dropdown (ปีการศึกษา)
 - **Apply**: Button "แสดงผล"
 
 ---
@@ -248,7 +248,7 @@
 ### Tab 1: Overview
 - **Information Card**:
   - School, Level, Standard, Indicator
-  - Fiscal Year, Owner, Created Date
+  - Academic Year, Owner, Created Date
   - Description
   - Privacy Level
 - **Actions**:
@@ -273,20 +273,20 @@
 ## Reports Pages
 
 ### Readiness Report (`/reports/readiness`)
-- **Filter Bar**: School, Fiscal Year
+- **Filter Bar**: School, Academic Year
 - **Chart**: Bar chart (เหมือน Dashboard)
 - **Table**: รายละเอียดต่อมาตรฐาน
   - Columns: Standard, Total Indicators, Ready, Approved, Percentage
 - **Export**: Button "ส่งออก PDF" (ภายหลัง)
 
 ### Missing Report (`/reports/missing`)
-- **Filter Bar**: School, Fiscal Year, Level, Standard
+- **Filter Bar**: School, Academic Year, Level, Standard
 - **Table**: รายการตัวชี้วัดที่ยังไม่มีหลักฐาน
   - Columns: Indicator Code, Indicator Name, Standard, Level
 - **Action**: "เพิ่มหลักฐาน" (link ไป `/evidence/new?indicatorId=...`)
 
 ### Files Report (`/reports/files`)
-- **Filter Bar**: School, Fiscal Year
+- **Filter Bar**: School, Academic Year
 - **Table**: รายการหลักฐานพร้อมไฟล์หลัก
   - Columns: Evidence Code, Title, Primary File, Storage Type, Open Link
 - **Open Link**: 

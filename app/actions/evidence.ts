@@ -1,10 +1,20 @@
 'use server';
 
+/**
+ * Evidence actions — PQA: หลักฐานเป็นฐานร่วม ใช้ได้ทั้ง QA (ตัวชี้วัด) และ PA (ข้อตกลง)
+ * @see docs/PQA_FRAMEWORK.md
+ */
+
 import { auth } from '@/lib/auth/nextauth';
 import { canAccessSchool } from '@/lib/auth/scoping';
 import { AUDIT_ACTIONS, logAction } from '@/lib/audit';
 import { prisma } from '@/lib/db';
-import { thaiFiscalYear, nextEvidenceCode } from '@/lib/evidence';
+import {
+  thaiAcademicYear,
+  thaiFiscalYear,
+  nextEvidenceCode,
+  getDefaultQAIndicatorId,
+} from '@/lib/evidence';
 import {
   createEvidenceSchema,
   updateEvidenceSchema,
@@ -317,11 +327,9 @@ export async function addEvidenceFile(formData: FormData) {
         const baseName = raw.fileName || (imageFiles.length > 1 ? `รูปภาพ ${imageFiles.length} ไฟล์` : path.parse(imageFiles[0].name).name);
         const finalName = baseName.trim();
 
-        // ยกเลิก primary ของรูปอื่นทั้งหมด
-        await prisma.evidenceFile.updateMany({
-          where: { evidenceId: evId },
-          data: { isPrimary: false },
-        });
+        // สำหรับรูปภาพหลายรูป: ใช้รูปแรกเป็น thumbnail ของกลุ่มเท่านั้น
+        // ไม่ตั้ง isPrimary อัตโนมัติ (ให้ user เป็นผู้กำหนดเอง)
+        // หมายเหตุ: ไม่ต้องยกเลิก primary ของรูปอื่น เพราะเราไม่ตั้ง primary อัตโนมัติ
 
         // สร้าง EvidenceFile record เดียวสำหรับกลุ่มรูปภาพ
         const created = await prisma.evidenceFile.create({
@@ -331,11 +339,11 @@ export async function addEvidenceFile(formData: FormData) {
             fileName: finalName,
             storageType: 'URL',
             externalUrl: thumbnailUrl, // เก็บ URL ของรูปแรก
-            thumbnailUrl: thumbnailUrl,
+            thumbnailUrl: thumbnailUrl, // รูปแรกเป็น thumbnail ของกลุ่มรูปภาพ
             fileUrls: fileUrlsArray, // เก็บ array ของรูปภาพทั้งหมด
             mimeType: imageFiles[0].type || undefined,
             fileSize: imageFiles.reduce((sum, f) => sum + (typeof f.size === 'number' ? f.size : 0), 0),
-            isPrimary: true,
+            isPrimary: false, // ไม่ตั้ง primary อัตโนมัติ ให้ user เป็นผู้กำหนดเอง
             note: raw.note,
             uploadedBy: BigInt(user.id),
           },
@@ -351,7 +359,7 @@ export async function addEvidenceFile(formData: FormData) {
             evidenceId: evId.toString(),
             fileName: finalName,
             storageType: 'URL',
-            isPrimary: true,
+            isPrimary: false, // ไม่ตั้ง primary อัตโนมัติ
             fileCount: imageFiles.length,
             fileType: 'image',
           }
@@ -721,13 +729,17 @@ export async function updateEvidenceFile(formData: FormData) {
   const session = await auth();
   if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
   try {
+    // ตรวจสอบว่ามีการส่ง isPrimary มาหรือไม่
+    const hasIsPrimary = formData.has('isPrimary');
+    const isPrimaryValue = formData.get('isPrimary') === 'on';
+    
     const raw = {
       evidenceId: formData.get('evidenceId') as string,
       fileId: formData.get('fileId') as string,
       fileName: (formData.get('fileName') as string) || undefined,
       storagePath: (formData.get('storagePath') as string) || undefined,
       externalUrl: (formData.get('externalUrl') as string) || undefined,
-      isPrimary: (formData.get('isPrimary') as string) === 'on',
+      isPrimary: hasIsPrimary ? isPrimaryValue : undefined, // ส่ง undefined ถ้าไม่ส่งมาเลย
       note: (formData.get('note') as string) || undefined,
     };
 
@@ -808,19 +820,29 @@ export async function updateEvidenceFile(formData: FormData) {
       },
     });
 
-    // Primary toggle
-    if (existing.storageType === 'URL' && data.isPrimary) {
-      await prisma.$transaction([
-        prisma.evidenceFile.updateMany({
-          where: { evidenceId: data.evidenceId },
-          data: { isPrimary: false },
-        }),
-        prisma.evidenceFile.update({
+    // Primary toggle: จัดการทั้งกรณีตั้ง primary และยกเลิก primary
+    if (existing.storageType === 'URL' && data.isPrimary !== undefined) {
+      if (data.isPrimary) {
+        // ตั้งเป็น primary: ยกเลิก primary ของไฟล์อื่นทั้งหมด แล้วตั้งไฟล์นี้เป็น primary
+        await prisma.$transaction([
+          prisma.evidenceFile.updateMany({
+            where: { evidenceId: data.evidenceId },
+            data: { isPrimary: false },
+          }),
+          prisma.evidenceFile.update({
+            where: { id: data.fileId },
+            data: { isPrimary: true },
+          }),
+        ]);
+      } else {
+        // ยกเลิก primary: ตั้ง isPrimary = false สำหรับไฟล์นี้เท่านั้น
+        await prisma.evidenceFile.update({
           where: { id: data.fileId },
-          data: { isPrimary: true },
-        }),
-      ]);
+          data: { isPrimary: false },
+        });
+      }
     }
+    // ถ้า data.isPrimary === undefined = ไม่ส่ง isPrimary มาเลย = ไม่เปลี่ยนแปลงค่า isPrimary
 
     revalidatePath(`/evidence/${data.evidenceId.toString()}/files`);
     revalidatePath(`/evidence/${data.evidenceId.toString()}`);
@@ -1136,10 +1158,10 @@ export async function getIndicatorById(indicatorId: string) {
 /**
  * ดึงรหัสหลักฐานถัดไป (สำหรับ preview)
  */
-export async function getNextEvidenceCode(indicatorId: string, fiscalYear?: number) {
+export async function getNextEvidenceCode(indicatorId: string, academicYear?: number) {
   try {
-    const fy = fiscalYear || thaiFiscalYear();
-    const code = await nextEvidenceCode(BigInt(indicatorId), fy);
+    const ay = academicYear || thaiAcademicYear();
+    const code = await nextEvidenceCode(BigInt(indicatorId), ay);
     return { success: true, data: code };
   } catch (error) {
     console.error('Error generating evidence code:', error);
@@ -1148,7 +1170,7 @@ export async function getNextEvidenceCode(indicatorId: string, fiscalYear?: numb
 }
 
 /**
- * สร้างหลักฐานใหม่
+ * สร้างหลักฐานใหม่ (PQA: หลักฐานหนึ่งชิ้นผูกตัวชี้วัด QA ได้ และสามารถผูกกับรายการ PA ภายหลังได้)
  */
 export async function createEvidence(formData: FormData) {
   const session = await auth();
@@ -1160,7 +1182,7 @@ export async function createEvidence(formData: FormData) {
   const user = session.user;
   const roles = user.roles ?? [];
   const roleCodes = new Set(roles.map((role) => role.role));
-  const allowedRoles = ['ADMIN', 'QA_LEAD', 'TEACHER'];
+  const allowedRoles = ['ADMIN', 'QA_LEAD', 'TEACHER', 'SCHOOL_DIRECTOR', 'SCHOOL_ADMIN'];
   const hasAllowedRole = allowedRoles.some((role) => roleCodes.has(role));
   if (!hasAllowedRole) {
     return { success: false, error: 'คุณไม่มีสิทธิ์สร้างหลักฐานใหม่' };
@@ -1174,6 +1196,9 @@ export async function createEvidence(formData: FormData) {
       fiscalYear: formData.get('fiscalYear')
         ? parseInt(formData.get('fiscalYear') as string)
         : thaiFiscalYear(),
+      academicYear: formData.get('academicYear')
+        ? parseInt(formData.get('academicYear') as string)
+        : thaiAcademicYear(),
       title: formData.get('title') as string,
       description: formData.get('description') as string | null,
       ownerUserId: formData.get('ownerUserId') as string | null,
@@ -1199,6 +1224,7 @@ export async function createEvidence(formData: FormData) {
         schoolId: validated.schoolId,
         indicatorId: validated.indicatorId,
         fiscalYear: validated.fiscalYear,
+        academicYear: validated.academicYear,
         title: validated.title,
         description: validated.description || null,
         evidenceCode,
@@ -1245,6 +1271,127 @@ export async function createEvidence(formData: FormData) {
     }
     const message = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการสร้างหลักฐาน';
     return { success: false, error: message };
+  }
+}
+
+/**
+ * สร้างหลักฐานจากหน้า "เก็บงาน" — ใช้ตัวชี้วัด QA default แล้วให้ AI แนะนำและเชื่อมโยงภายหลัง
+ * รองรับ: รูปภาพ, วิดีโอ (upload/YouTube/Drive), เอกสาร (Canva/PDF/PPT), ข้อความอธิบาย
+ */
+export async function createWorkCollectionItem(formData: FormData) {
+  const session = await auth();
+  if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
+
+  const user = session.user;
+  const roles = user.roles ?? [];
+  const allowed = ['ADMIN', 'QA_LEAD', 'TEACHER', 'SCHOOL_DIRECTOR', 'SCHOOL_ADMIN'].some((r) =>
+    roles.some((x) => x.role === r)
+  );
+  if (!allowed) return { success: false, error: 'คุณไม่มีสิทธิ์เพิ่มงานเก็บงาน' };
+
+  const schoolIdRaw = formData.get('schoolId') as string;
+  const schoolId = BigInt(schoolIdRaw || '0');
+  const fiscalYear = formData.get('fiscalYear')
+    ? parseInt(formData.get('fiscalYear') as string, 10)
+    : thaiFiscalYear();
+  const academicYear = formData.get('academicYear')
+    ? parseInt(formData.get('academicYear') as string, 10)
+    : thaiAcademicYear();
+  const title = (formData.get('title') as string)?.trim() || '';
+  const description = (formData.get('description') as string)?.trim() || null;
+
+  if (!title) return { success: false, error: 'กรุณาระบุชื่อหรือหัวข้อหลักฐาน' };
+
+  const hasAccess = await canAccessSchool(BigInt(user.id), schoolId);
+  if (!hasAccess) return { success: false, error: 'คุณไม่มีสิทธิ์เข้าถึงโรงเรียนนี้' };
+
+  try {
+    const defaultIndicatorId = await getDefaultQAIndicatorId();
+    const evidenceCode = await nextEvidenceCode(defaultIndicatorId, fiscalYear);
+
+    const evidence = await prisma.evidence.create({
+      data: {
+        schoolId,
+        indicatorId: defaultIndicatorId,
+        fiscalYear,
+        academicYear,
+        title,
+        description,
+        evidenceCode,
+        status: 'PENDING',
+        privacyLevel: 'INTERNAL',
+        ownerUserId: BigInt(user.id),
+        createdBy: BigInt(user.id),
+      },
+    });
+
+    await logAction(
+      user.id,
+      AUDIT_ACTIONS.CREATE_EVIDENCE,
+      'Evidence',
+      evidence.id,
+      schoolId,
+      { evidenceCode, title, source: 'work-collection' }
+    );
+
+    const storageType = (formData.get('storageType') as string) || 'URL';
+    const externalUrl = (formData.get('externalUrl') as string)?.trim();
+    const fileFileName = (formData.get('fileName') as string)?.trim();
+    const uploadedFiles = formData.getAll('files') as File[];
+    const hasLink = ['YOUTUBE', 'GDRIVE', 'CANVA', 'LINK'].includes(storageType) && externalUrl;
+    const hasUpload = storageType === 'URL' && uploadedFiles.length > 0 && uploadedFiles[0]?.size;
+
+    if (hasUpload) {
+      const hasVideo = uploadedFiles.some((f) => f && isVideoFile(f.name, f.type));
+      if (hasVideo && uploadedFiles.length > 1) {
+        return { success: false, error: 'วิดีโออัปโหลดได้ครั้งละ 1 ไฟล์เท่านั้น' };
+      }
+      if (!hasVideo && uploadedFiles.length > 5) {
+        return { success: false, error: 'รูปภาพหรือเอกสาร PDF/PPT แนบได้ครั้งละไม่เกิน 5 ไฟล์' };
+      }
+    }
+
+    if (hasLink || hasUpload) {
+      const fileFormData = new FormData();
+      fileFormData.set('evidenceId', evidence.id.toString());
+      fileFormData.set('storageType', storageType);
+      if (externalUrl) {
+        fileFormData.set('externalUrl', externalUrl);
+        fileFormData.set('storagePath', externalUrl);
+      }
+      if (fileFileName) fileFormData.set('fileName', fileFileName);
+      else if (hasLink)
+        fileFormData.set(
+          'fileName',
+          storageType === 'YOUTUBE'
+            ? 'วิดีโอ YouTube'
+            : storageType === 'GDRIVE'
+              ? 'ไฟล์ Google Drive'
+              : 'ลิงก์'
+        );
+      uploadedFiles.forEach((f) => f && fileFormData.append('files', f));
+
+      const addResult = await addEvidenceFile(fileFormData);
+      if (!addResult.success) {
+        await prisma.evidence.update({
+          where: { id: evidence.id },
+          data: { description: description || undefined },
+        });
+        return { success: true, evidenceId: evidence.id.toString(), fileError: addResult.error };
+      }
+    }
+
+    revalidatePath('/work-collection');
+    revalidatePath('/evidence');
+    revalidatePath('/dashboard');
+
+    return { success: true, evidenceId: evidence.id.toString() };
+  } catch (error) {
+    console.error('[createWorkCollectionItem]', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึก',
+    };
   }
 }
 

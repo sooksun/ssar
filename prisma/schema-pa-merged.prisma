@@ -1,0 +1,831 @@
+// =============================================================================
+// Merged Prisma Schema with PA Support
+// รวม Schema การประกันคุณภาพเดิม + PA (Performance Agreement)
+// =============================================================================
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// Existing Models (QA System)
+// =============================================================================
+
+model School {
+  id                   BigInt                @id @default(autoincrement())
+  sc_id                BigInt                @unique
+  name                 String
+  area_name            String?
+  province             String?
+  level_type           String?
+  del                  Boolean               @default(false)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  users                UserSchoolRole[]
+  primaryUsers         User[]                @relation("PrimarySchool")
+  evidence             Evidence[]
+  evidenceFiles        EvidenceFile[]
+  evidenceReviews      EvidenceReview[]
+  sarReports           SarReport[]
+  external             ExternalAssessment[]
+  evaluations          Evaluation[]
+  externalEvaluations  ExternalEvaluation[]
+  auditLogs            AuditLog[]
+  selfAssessmentScopes SelfAssessmentScope[]
+  teachingMedia        TeachingMedia[]
+  teachingMediaFiles   TeachingMediaFile[]
+  lessonPlans          LessonPlan[]
+  lessonPlanFiles      LessonPlanFile[]
+  // PA Relations
+  paAgreements         PAAgreement[]
+  paSummaries          PASummary[]
+
+  @@map("school")
+}
+
+model Role {
+  id    BigInt           @id @default(autoincrement())
+  code  String           @unique
+  name  String
+  users UserSchoolRole[]
+
+  @@map("role")
+}
+
+model User {
+  id            BigInt           @id @default(autoincrement())
+  fullName      String
+  email         String           @unique
+  password      String?
+  phone         String?
+  del           Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  primarySchool School?          @relation("PrimarySchool", fields: [schoolId], references: [sc_id])
+  schoolId      BigInt?
+  schoolRoles   UserSchoolRole[]
+  evidenceOwned Evidence[]       @relation("Owner")
+  evidenceFiles EvidenceFile[]   @relation("Uploader")
+  reviews       EvidenceReview[] @relation("Reviewer")
+  audits        AuditLog[]       @relation("Actor")
+
+  @@map("user")
+}
+
+model UserSchoolRole {
+  id        BigInt   @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    BigInt
+  school    School   @relation(fields: [schoolId], references: [sc_id])
+  schoolId  BigInt
+  role      Role     @relation(fields: [roleId], references: [id])
+  roleId    BigInt
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, schoolId])
+  @@map("userschoolrole")
+}
+
+model EduLevel {
+  id                   Int                   @id @default(autoincrement())
+  code                 String                @unique
+  nameTh               String
+  standards            QAStandard[]
+  selfAssessmentScopes SelfAssessmentScope[]
+  indicatorScales      IndicatorScale[]
+
+  @@map("edulevel")
+}
+
+model QAStandard {
+  id                       BigInt                    @id @default(autoincrement())
+  level                    EduLevel                  @relation(fields: [levelId], references: [id])
+  levelId                  Int
+  code                     String
+  nameTh                   String
+  sortNo                   Int
+  indicators               QAIndicator[]
+  evaluations              Evaluation[]
+  selfAssessmentIndicators SelfAssessmentIndicator[]
+
+  @@unique([levelId, code])
+  @@map("qastandard")
+}
+
+model QAIndicator {
+  id                       BigInt                    @id @default(autoincrement())
+  standard                 QAStandard                @relation(fields: [standardId], references: [id])
+  standardId               BigInt
+  code                     String
+  nameTh                   String
+  descriptionTh            String?
+  sortNo                   Int
+  subItems                 QASubIndicator[]
+  evidence                 Evidence[]
+  evaluations              Evaluation[]
+  selfAssessmentIndicators SelfAssessmentIndicator[]
+  indicatorScales          IndicatorScale[]
+  teachingMedia            TeachingMedia[]
+
+  @@unique([standardId, code])
+  @@map("qaindicator")
+}
+
+model QASubIndicator {
+  id          BigInt      @id @default(autoincrement())
+  indicator   QAIndicator @relation(fields: [indicatorId], references: [id])
+  indicatorId BigInt
+  itemNo      Int
+  textTh      String
+
+  @@unique([indicatorId, itemNo])
+  @@map("qasubindicator")
+}
+
+model Evidence {
+  id                  BigInt                       @id @default(autoincrement())
+  school              School                       @relation(fields: [schoolId], references: [sc_id])
+  schoolId            BigInt
+  indicator           QAIndicator                  @relation(fields: [indicatorId], references: [id])
+  indicatorId         BigInt
+  fiscalYear          Int
+  academicYear        Int
+  title               String
+  description         String?
+  status              EvidenceStatus               @default(PENDING)
+  evidenceCode        String?
+  owner               User?                        @relation("Owner", fields: [ownerUserId], references: [id])
+  ownerUserId         BigInt?
+  privacyLevel        PrivacyLevel                 @default(INTERNAL)
+  del                 Boolean                      @default(false)
+  createdBy           BigInt?
+  updatedBy           BigInt?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  files               EvidenceFile[]
+  reviews             EvidenceReview[]
+  selfAssessmentLinks SelfAssessmentEvidenceLink[]
+  externalEvaluations ExternalEvaluation[]
+  // PA Relations
+  paMappings          PAEvidenceMapping[]
+
+  @@index([schoolId, fiscalYear, indicatorId, status])
+  @@index([schoolId, academicYear, indicatorId, status])
+  @@map("evidence")
+}
+
+enum EvidenceStatus {
+  MISSING
+  PENDING
+  READY
+  APPROVED
+  REJECTED
+}
+
+enum PrivacyLevel {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+}
+
+model EvidenceFile {
+  id           BigInt              @id @default(autoincrement())
+  evidence     Evidence            @relation(fields: [evidenceId], references: [id])
+  evidenceId   BigInt
+  school       School              @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  fileName     String
+  mimeType     String?
+  fileSize     Int?
+  storageType  EvidenceStorageType @default(URL)
+  storagePath  String?
+  driveFileId  String?
+  externalUrl  String?
+  thumbnailUrl String?
+  fileUrls     Json?
+  checksumSha1 String?
+  versionNo    Int                 @default(1)
+  uploader     User?               @relation("Uploader", fields: [uploadedBy], references: [id])
+  uploadedBy   BigInt?
+  uploadedAt   DateTime            @default(now())
+  isPrimary    Boolean             @default(false)
+  note         String?
+  del          Boolean             @default(false)
+  reviews      EvidenceReview[]
+
+  @@index([evidenceId])
+  @@index([evidenceId, isPrimary])
+  @@index([schoolId])
+  @@map("evidencefile")
+}
+
+enum EvidenceStorageType {
+  YOUTUBE
+  GDRIVE
+  URL
+  CANVA
+  LINK
+}
+
+model EvidenceReview {
+  id             BigInt        @id @default(autoincrement())
+  evidence       Evidence      @relation(fields: [evidenceId], references: [id])
+  evidenceId     BigInt
+  evidenceFile   EvidenceFile? @relation(fields: [evidenceFileId], references: [id])
+  evidenceFileId BigInt?
+  school         School        @relation(fields: [schoolId], references: [sc_id])
+  schoolId       BigInt
+  reviewer       User          @relation("Reviewer", fields: [reviewerId], references: [id])
+  reviewerId     BigInt
+  reviewStatus   ReviewStatus  @default(NEED_MORE)
+  score          Decimal?      @db.Decimal(5, 2)
+  comment        String?
+  reviewedAt     DateTime      @default(now())
+
+  @@index([evidenceFileId])
+  @@map("evidencereview")
+}
+
+enum ReviewStatus {
+  NEED_MORE
+  ACCEPTED
+  REJECTED
+}
+
+model Evaluation {
+  id          BigInt       @id @default(autoincrement())
+  school      School       @relation(fields: [schoolId], references: [sc_id])
+  schoolId    BigInt
+  fiscalYear  Int
+  standard    QAStandard   @relation(fields: [standardId], references: [id])
+  standardId  BigInt
+  indicator   QAIndicator? @relation(fields: [indicatorId], references: [id])
+  indicatorId BigInt?
+  evalType    EvalType     @default(SELF)
+  score       Decimal?     @db.Decimal(5, 2)
+  comment     String?
+  createdBy   BigInt?
+  createdAt   DateTime     @default(now())
+
+  @@index([schoolId, fiscalYear])
+  @@map("evaluation")
+}
+
+enum EvalType {
+  SELF
+  EXTERNAL
+}
+
+model SarReport {
+  id          BigInt      @id @default(autoincrement())
+  school      School      @relation(fields: [schoolId], references: [sc_id])
+  schoolId    BigInt
+  fiscalYear  Int
+  title       String
+  storageType StorageType
+  storagePath String?
+  driveFileId String?
+  externalUrl String?
+  versionNo   Int         @default(1)
+  status      SarStatus   @default(DRAFT)
+  createdBy   BigInt?
+  updatedBy   BigInt?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("sarreport")
+}
+
+enum StorageType {
+  LOCAL
+  GDRIVE
+  URL
+}
+
+enum SarStatus {
+  DRAFT
+  READY
+  SUBMITTED
+  APPROVED
+}
+
+model ExternalAssessment {
+  id                  BigInt               @id @default(autoincrement())
+  school              School               @relation(fields: [schoolId], references: [sc_id])
+  schoolId            BigInt
+  fiscalYear          Int
+  visitDate           DateTime
+  assessorsNote       String?
+  agendaUrl           String?
+  reportUrl           String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  externalEvaluations ExternalEvaluation[]
+
+  @@map("externalassessment")
+}
+
+model ExternalEvaluation {
+  id                   BigInt              @id @default(autoincrement())
+  evidence             Evidence            @relation(fields: [evidenceId], references: [id])
+  evidenceId           BigInt
+  school               School              @relation(fields: [schoolId], references: [sc_id])
+  schoolId             BigInt
+  externalAssessment   ExternalAssessment? @relation(fields: [externalAssessmentId], references: [id])
+  externalAssessmentId BigInt?
+  evaluatorName        String
+  evaluatorOrg         String?
+  evaluationDate       DateTime            @default(now())
+  score                Decimal?            @db.Decimal(5, 2)
+  strengths            String?
+  weaknesses           String?
+  recommendations      String?
+  attachmentUrl        String?
+  createdBy            BigInt?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@unique([evidenceId, evaluatorName])
+  @@index([evidenceId])
+  @@index([schoolId])
+  @@index([externalAssessmentId])
+  @@map("externalevaluation")
+}
+
+model AuditLog {
+  id          BigInt   @id @default(autoincrement())
+  actor       User?    @relation("Actor", fields: [actorId], references: [id])
+  actorId     BigInt?
+  school      School?  @relation(fields: [schoolId], references: [sc_id])
+  schoolId    BigInt?
+  action      String
+  targetTable String
+  targetId    BigInt?
+  payload     Json?
+  createdAt   DateTime @default(now())
+
+  @@map("auditlog")
+}
+
+model SelfAssessmentScope {
+  id         BigInt   @id @default(autoincrement())
+  school     School   @relation(fields: [schoolId], references: [sc_id])
+  schoolId   BigInt
+  fiscalYear Int
+  level      EduLevel @relation(fields: [levelId], references: [id])
+  levelId    Int
+
+  indicators SelfAssessmentIndicator[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, fiscalYear, levelId], name: "uq_scope_school_year_level")
+  @@map("selfassessmentscope")
+}
+
+model SelfAssessmentIndicator {
+  id BigInt @id @default(autoincrement())
+
+  scope   SelfAssessmentScope @relation(fields: [scopeId], references: [id])
+  scopeId BigInt
+
+  standard   QAStandard @relation(fields: [standardId], references: [id])
+  standardId BigInt
+
+  indicator   QAIndicator @relation(fields: [indicatorId], references: [id])
+  indicatorId BigInt
+
+  targetLevel   Int? @db.TinyInt
+  selfScore     Int? @db.TinyInt
+  externalScore Int? @db.TinyInt
+
+  evidenceSummary String?
+  strength        String?
+  weakness        String?
+  improvementPlan String?
+  isBestPractice  Boolean @default(false)
+
+  evidenceLinks SelfAssessmentEvidenceLink[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scopeId, indicatorId], name: "uq_scope_indicator")
+  @@index([standardId])
+  @@map("selfassessmentindicator")
+}
+
+model SelfAssessmentEvidenceLink {
+  id BigInt @id @default(autoincrement())
+
+  selfIndicator   SelfAssessmentIndicator @relation(fields: [selfIndicatorId], references: [id])
+  selfIndicatorId BigInt
+
+  evidence   Evidence @relation(fields: [evidenceId], references: [id])
+  evidenceId BigInt
+
+  note String?
+
+  createdAt DateTime @default(now())
+
+  @@map("selfassessmentevidencelink")
+}
+
+model IndicatorScale {
+  id BigInt @id @default(autoincrement())
+
+  level   EduLevel @relation(fields: [levelId], references: [id])
+  levelId Int
+
+  indicator   QAIndicator @relation(fields: [indicatorId], references: [id])
+  indicatorId BigInt
+
+  score         Int    @db.TinyInt
+  labelTh       String
+  descriptionTh String
+
+  createdAt DateTime @default(now())
+
+  @@unique([indicatorId, score], name: "uq_indicator_score")
+  @@index([levelId])
+  @@map("indicatorscale")
+}
+
+model TeachingMedia {
+  id           BigInt              @id @default(autoincrement())
+  school       School              @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  indicator    QAIndicator         @relation(fields: [indicatorId], references: [id])
+  indicatorId  BigInt
+  academicYear Int
+  fiscalYear   Int
+  title        String
+  description  String?
+  teacherName  String
+  teacherId    BigInt?
+  status       TeachingMediaStatus @default(DRAFT)
+  del          Boolean             @default(false)
+  createdBy    BigInt?
+  updatedBy    BigInt?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  files TeachingMediaFile[]
+
+  @@index([schoolId, academicYear, indicatorId])
+  @@index([schoolId, fiscalYear, indicatorId])
+  @@index([schoolId, academicYear])
+  @@index([schoolId, fiscalYear])
+  @@map("teachingmedia")
+}
+
+enum TeachingMediaStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model TeachingMediaFile {
+  id              BigInt              @id @default(autoincrement())
+  teachingMedia   TeachingMedia       @relation(fields: [teachingMediaId], references: [id])
+  teachingMediaId BigInt
+  school          School              @relation(fields: [schoolId], references: [sc_id])
+  schoolId        BigInt
+  fileName        String
+  mimeType        String?
+  fileSize        Int?
+  storageType     EvidenceStorageType @default(URL)
+  storagePath     String?
+  driveFileId     String?
+  externalUrl     String?
+  thumbnailUrl    String?
+  fileUrls        Json?
+  description     String?
+  uploadedBy      BigInt?
+  uploadedAt      DateTime            @default(now())
+  isPrimary       Boolean             @default(false)
+  del             Boolean             @default(false)
+
+  @@index([teachingMediaId])
+  @@index([teachingMediaId, isPrimary])
+  @@index([schoolId])
+  @@map("teachingmediafile")
+}
+
+model LessonPlan {
+  id           BigInt           @id @default(autoincrement())
+  school       School           @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  academicYear Int
+  fiscalYear   Int
+  title        String
+  description  String?
+  teacherName  String
+  teacherId    BigInt?
+  subject      String?
+  grade        String?
+  planDate     DateTime?
+  submittedAt  DateTime?
+  reflection   String?
+  status       LessonPlanStatus @default(DRAFT)
+  del          Boolean          @default(false)
+  createdBy    BigInt?
+  updatedBy    BigInt?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  files LessonPlanFile[]
+
+  @@index([schoolId, academicYear])
+  @@index([schoolId, fiscalYear])
+  @@index([schoolId, academicYear, status])
+  @@index([schoolId, fiscalYear, status])
+  @@map("lessonplan")
+}
+
+enum LessonPlanStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+  APPROVED
+  REJECTED
+}
+
+model LessonPlanFile {
+  id           BigInt              @id @default(autoincrement())
+  lessonPlan   LessonPlan          @relation(fields: [lessonPlanId], references: [id])
+  lessonPlanId BigInt
+  school       School              @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  fileName     String
+  mimeType     String?
+  fileSize     Int?
+  storageType  EvidenceStorageType @default(URL)
+  storagePath  String?
+  driveFileId  String?
+  externalUrl  String?
+  thumbnailUrl String?
+  fileUrls     Json?
+  fileType     LessonPlanFileType  @default(PLAN)
+  description  String?
+  uploadedBy   BigInt?
+  uploadedAt   DateTime            @default(now())
+  isPrimary    Boolean             @default(false)
+  del          Boolean             @default(false)
+
+  @@index([lessonPlanId])
+  @@index([lessonPlanId, isPrimary])
+  @@index([schoolId])
+  @@map("lessonplanfile")
+}
+
+enum LessonPlanFileType {
+  PLAN
+  REFLECTION
+  OTHER
+}
+
+// =============================================================================
+// NEW PA (Performance Agreement) Models
+// =============================================================================
+
+model PAAspect {
+  id          BigInt        @id @default(autoincrement())
+  code        String        @unique
+  nameTh      String
+  sortNo      Int
+  description String?
+  maxScore    Int           @default(60)
+  part        PAPart        @default(PART1)
+
+  indicators PAIndicator[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("paaspect")
+}
+
+enum PAPart {
+  PART1
+  PART2
+}
+
+model PAIndicator {
+  id          BigInt    @id @default(autoincrement())
+  aspect      PAAspect  @relation(fields: [aspectId], references: [id])
+  aspectId    BigInt
+  code        String
+  nameTh      String
+  description String?
+  sortNo      Int
+  weight      Decimal?  @db.Decimal(5, 2)
+
+  evidences      PAEvidenceMapping[]
+  agreementItems PAAgreementItem[]
+  scales         PAIndicatorScale[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([aspectId, code])
+  @@index([aspectId])
+  @@map("paindicator")
+}
+
+model PAIndicatorScale {
+  id            BigInt      @id @default(autoincrement())
+  indicator     PAIndicator @relation(fields: [indicatorId], references: [id])
+  indicatorId   BigInt
+  score         Int         @db.TinyInt
+  labelTh       String
+  descriptionTh String?
+  criteriaTh    String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([indicatorId, score])
+  @@map("paindicatorscale")
+}
+
+model PAConsideration {
+  id          BigInt    @id @default(autoincrement())
+  code        String    @unique
+  nameTh      String
+  description String?
+  maxScore    Int
+  sortNo      Int
+
+  challengeItems PAChallengeItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("paconsideration")
+}
+
+model PAAgreement {
+  id          BigInt    @id @default(autoincrement())
+  school      School    @relation(fields: [schoolId], references: [sc_id])
+  schoolId    BigInt
+  userId      BigInt
+  evaluatorId BigInt?
+
+  fiscalYear   Int
+  startDate    DateTime
+  endDate      DateTime
+  status       PAStatus @default(DRAFT)
+  totalScore   Decimal? @db.Decimal(5, 2)
+  part1Score   Decimal? @db.Decimal(5, 2)
+  part2Score   Decimal? @db.Decimal(5, 2)
+  isPassed     Boolean?
+  passReason   String?
+  note         String?
+
+  items     PAAgreementItem[]
+  challenge PAChallengeItem?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy BigInt?
+  updatedBy BigInt?
+
+  @@unique([userId, fiscalYear])
+  @@index([schoolId, fiscalYear])
+  @@index([status])
+  @@map("paagreement")
+}
+
+enum PAStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  EVALUATED
+  APPROVED
+  REJECTED
+}
+
+model PAAgreementItem {
+  id            BigInt      @id @default(autoincrement())
+  agreement     PAAgreement @relation(fields: [agreementId], references: [id])
+  agreementId   BigInt
+  indicator     PAIndicator @relation(fields: [indicatorId], references: [id])
+  indicatorId   BigInt
+  score         Int?        @db.TinyInt
+  scoreValue    Decimal?    @db.Decimal(5, 2)
+  comment       String?
+  evaluatorNote String?
+
+  evidenceLinks PAEvidenceMapping[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agreementId, indicatorId])
+  @@index([agreementId])
+  @@index([indicatorId])
+  @@map("paagreementitem")
+}
+
+model PAChallengeItem {
+  id                BigInt    @id @default(autoincrement())
+  agreement         PAAgreement @relation(fields: [agreementId], references: [id])
+  agreementId       BigInt @unique
+  title             String
+  description       String?
+  objectives        String?
+
+  c1MethodScore   Int? @db.TinyInt
+  c1MethodComment String?
+  c21QuantScore   Int? @db.TinyInt
+  c21QuantComment String?
+  c22QualScore    Int? @db.TinyInt
+  c22QualComment  String?
+  part2Total      Decimal? @db.Decimal(5, 2)
+
+  considerations PAChallengeConsideration[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pachallengeitem")
+}
+
+model PAChallengeConsideration {
+  id              BigInt              @id @default(autoincrement())
+  challenge       PAChallengeItem     @relation(fields: [challengeId], references: [id])
+  challengeId     BigInt
+  consideration   PAConsideration     @relation(fields: [considerationId], references: [id])
+  considerationId BigInt
+  score           Int?                @db.TinyInt
+  scoreValue      Decimal?            @db.Decimal(5, 2)
+  comment         String?
+
+  evidenceLinks PAEvidenceMapping[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([challengeId, considerationId])
+  @@map("pachallengeconsideration")
+}
+
+model PAEvidenceMapping {
+  id                     BigInt                    @id @default(autoincrement())
+  evidence               Evidence                  @relation(fields: [evidenceId], references: [id])
+  evidenceId             BigInt
+  agreementItem          PAAgreementItem?            @relation(fields: [agreementItemId], references: [id])
+  agreementItemId        BigInt?
+  challengeConsideration PAChallengeConsideration? @relation(fields: [challengeConsiderationId], references: [id])
+  challengeConsiderationId BigInt?
+  note                   String?
+  relevanceLevel         Int?                      @db.TinyInt
+  createdAt              DateTime                  @default(now())
+  createdBy              BigInt?
+
+  @@index([evidenceId])
+  @@index([agreementItemId])
+  @@index([challengeConsiderationId])
+  @@map("paevidencemapping")
+}
+
+model PASummary {
+  id                 BigInt    @id @default(autoincrement())
+  school             School    @relation(fields: [schoolId], references: [sc_id])
+  schoolId           BigInt
+  userId             BigInt
+  fiscalYear         Int
+  p1AcademicScore    Decimal?  @db.Decimal(5, 2)
+  p2ManagementScore  Decimal?  @db.Decimal(5, 2)
+  p3InnovationScore  Decimal?  @db.Decimal(5, 2)
+  p4NetworkScore     Decimal?  @db.Decimal(5, 2)
+  p5DevelopmentScore Decimal?  @db.Decimal(5, 2)
+  part1Total         Decimal?  @db.Decimal(5, 2)
+  c1MethodScore      Decimal?  @db.Decimal(5, 2)
+  c2QuantScore       Decimal?  @db.Decimal(5, 2)
+  c2QualScore        Decimal?  @db.Decimal(5, 2)
+  part2Total         Decimal?  @db.Decimal(5, 2)
+  grandTotal         Decimal?  @db.Decimal(5, 2)
+  isPassed           Boolean?
+  evaluationLevel    String?
+  totalEvidenceCount Int       @default(0)
+  qaLinkedCount      Int       @default(0)
+  paLinkedCount      Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, fiscalYear])
+  @@index([schoolId, fiscalYear])
+  @@map("pasummary")
+}

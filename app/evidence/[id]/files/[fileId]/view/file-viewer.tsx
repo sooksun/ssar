@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { EvidenceFile } from '@prisma/client';
 import { isVideoFile } from '@/lib/file-types';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 type FileViewerProps = {
   file: Partial<EvidenceFile> & {
@@ -26,7 +26,7 @@ type FileViewerProps = {
         nameTh: string;
       };
     };
-    fileUrls?: any; // JsonValue from Prisma
+    fileUrls?: unknown; // JsonValue from Prisma
     thumbnailUrl?: string | null;
   };
 };
@@ -38,6 +38,10 @@ export function FileViewer({ file }: FileViewerProps) {
   // State สำหรับ image modal (ใช้สำหรับกลุ่มรูปภาพ)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  // State สำหรับ loading
+  const [isLoading, setIsLoading] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [loadedImagesCount, setLoadedImagesCount] = useState(0);
 
   // ตรวจสอบว่าเป็นไฟล์รูปภาพหรือไม่ (ต้องประกาศก่อนใช้)
   const isImageFile = (fileName?: string | null, mimeType?: string | null): boolean => {
@@ -96,6 +100,57 @@ export function FileViewer({ file }: FileViewerProps) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isModalOpen, goToPrevious, goToNext, closeModal, fileUrls]);
+
+  // Reset loading state when file changes
+  useEffect(() => {
+    setIsLoading(true);
+    setLoadedImagesCount(0);
+  }, [file.id]);
+
+  // ตรวจสอบว่า loadedImagesCount เท่ากับ fileUrls.length หรือไม่
+  useEffect(() => {
+    if (!fileUrls || fileUrls.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    // ถ้าโหลดครบทุกรูปแล้ว ให้ซ่อน loading
+    if (loadedImagesCount >= fileUrls.length) {
+      setIsLoading(false);
+    }
+  }, [loadedImagesCount, fileUrls]);
+
+  // ตรวจสอบอีกครั้งหลังจาก render (กรณีที่รูปภาพถูก cache และ onLoad ไม่ถูกเรียก)
+  useEffect(() => {
+    if (!fileUrls || fileUrls.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    // ตรวจสอบอีกครั้งหลังจาก render (กรณีที่รูปภาพถูก cache)
+    const timeoutId = setTimeout(() => {
+      // ตรวจสอบว่ามีรูปภาพที่โหลดเสร็จแล้วหรือไม่
+      if (loadedImagesCount >= fileUrls.length) {
+        setIsLoading(false);
+      } else {
+        // ถ้ายังไม่ครบ ให้ตั้งค่า loadedImagesCount เป็นจำนวนทั้งหมดเพื่อซ่อน loading
+        // (กรณีที่รูปภาพถูก cache และ onLoad ไม่ถูกเรียก)
+        setLoadedImagesCount(fileUrls.length);
+        setIsLoading(false);
+      }
+    }, 500);
+
+    // Fallback: ซ่อน loading หลังจาก 2 วินาที (กรณีที่ onLoad ไม่ถูกเรียกเลย)
+    const fallbackTimeout = setTimeout(() => {
+      setIsLoading(false);
+      setLoadedImagesCount(fileUrls.length);
+    }, 2000);
+
+    return () => {
+      clearTimeout(timeoutId);
+      clearTimeout(fallbackTimeout);
+    };
+  }, [fileUrls, file.id, loadedImagesCount]);
 
   // สร้าง YouTube embed URL
   const getYouTubeEmbedUrl = (url: string): string | null => {
@@ -237,6 +292,16 @@ export function FileViewer({ file }: FileViewerProps) {
 
   const fileUrl = getFileUrl();
 
+  // Loading Component
+  const LoadingSpinner = () => (
+    <div className="absolute inset-0 z-10 flex items-center justify-center bg-muted/50 backdrop-blur-sm">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="text-sm font-medium text-muted-foreground">กำลังโหลดไฟล์...</p>
+      </div>
+    </div>
+  );
+
   // แสดงตามประเภทไฟล์
   if (file.storageType === 'YOUTUBE' && fileUrl) {
     const embedUrl = getYouTubeEmbedUrl(fileUrl);
@@ -244,12 +309,14 @@ export function FileViewer({ file }: FileViewerProps) {
       return (
         <div className="w-full">
           <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+            {isLoading && <LoadingSpinner />}
             <iframe
               src={embedUrl}
               title={file.fileName}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
               className="absolute inset-0 h-full w-full"
+              onLoad={() => setIsLoading(false)}
             />
           </div>
           <div className="mt-4 text-sm text-muted-foreground">
@@ -293,11 +360,13 @@ export function FileViewer({ file }: FileViewerProps) {
       return (
         <div className="w-full">
           <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted">
+            {isLoading && <LoadingSpinner />}
             <iframe
               src={embedUrl}
               title={file.fileName}
               allow="autoplay"
               className="absolute inset-0 h-full w-full"
+              onLoad={() => setIsLoading(false)}
             />
           </div>
           <div className="mt-4 text-sm text-muted-foreground">
@@ -341,11 +410,13 @@ export function FileViewer({ file }: FileViewerProps) {
       return (
         <div className="w-full">
           <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg bg-muted">
+            {isLoading && <LoadingSpinner />}
             <iframe
               src={embedUrl}
               title={file.fileName}
               allow="fullscreen"
               className="absolute inset-0 h-full w-full"
+              onLoad={() => setIsLoading(false)}
             />
           </div>
           <div className="mt-4 text-sm text-muted-foreground">
@@ -432,11 +503,14 @@ export function FileViewer({ file }: FileViewerProps) {
       return (
         <div className="w-full">
           <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+            {isLoading && <LoadingSpinner />}
             <video
               src={fileUrl}
               controls
               className="h-full w-full"
               preload="metadata"
+              onLoadedData={() => setIsLoading(false)}
+              onCanPlay={() => setIsLoading(false)}
             >
               <source src={fileUrl} type={file.mimeType || 'video/mp4'} />
               เบราว์เซอร์ของคุณไม่รองรับการแสดงวิดีโอ
@@ -470,7 +544,6 @@ export function FileViewer({ file }: FileViewerProps) {
     // ตรวจสอบว่าเป็นรูปภาพ
     if (isImageFile(file.fileName, file.mimeType)) {
       if (fileUrls && fileUrls.length > 0) {
-
         return (
           <>
             <div className="w-full">
@@ -480,6 +553,14 @@ export function FileViewer({ file }: FileViewerProps) {
                   กลุ่มรูปภาพ ({fileUrls.length} ไฟล์)
                 </p>
               </div>
+              {isLoading && (
+                <div className="mb-8 flex justify-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    <p className="text-sm font-medium text-muted-foreground">กำลังโหลดรูปภาพ...</p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {fileUrls.map((img, index) => (
                   <div key={index} className="group flex flex-col">
@@ -494,6 +575,24 @@ export function FileViewer({ file }: FileViewerProps) {
                         height={400}
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
                         unoptimized
+                        onLoad={() => {
+                          setLoadedImagesCount((prev) => {
+                            const newCount = prev + 1;
+                            if (newCount >= fileUrls.length) {
+                              setIsLoading(false);
+                            }
+                            return newCount;
+                          });
+                        }}
+                        onError={() => {
+                          setLoadedImagesCount((prev) => {
+                            const newCount = prev + 1;
+                            if (newCount >= fileUrls.length) {
+                              setIsLoading(false);
+                            }
+                            return newCount;
+                          });
+                        }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     </div>
@@ -597,6 +696,7 @@ export function FileViewer({ file }: FileViewerProps) {
       return (
         <div className="w-full">
           <div className="relative aspect-auto w-full overflow-hidden rounded-lg bg-muted">
+            {isLoading && <LoadingSpinner />}
             <Image
               src={fileUrl}
               alt={file.fileName}
@@ -604,6 +704,8 @@ export function FileViewer({ file }: FileViewerProps) {
               height={800}
               className="h-auto w-full object-contain"
               unoptimized
+              onLoad={() => setIsLoading(false)}
+              onError={() => setIsLoading(false)}
             />
           </div>
           <div className="mt-4 text-sm text-muted-foreground">
@@ -631,10 +733,12 @@ export function FileViewer({ file }: FileViewerProps) {
       return (
         <div className="w-full">
           <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted">
+            {isLoading && <LoadingSpinner />}
             <iframe
               src={fileUrl}
               title={file.fileName}
               className="absolute inset-0 h-full w-full"
+              onLoad={() => setIsLoading(false)}
             />
           </div>
           <div className="mt-4 text-sm text-muted-foreground">

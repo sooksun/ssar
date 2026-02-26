@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth/nextauth';
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import BarReadinessByStandard, { ReadinessByStandardDatum } from '@/components/dashboard/BarReadinessByStandard';
@@ -39,6 +40,7 @@ export default async function DashboardPage() {
     evidenceForAgg,
     evaluationRecords,
     pendingEvidence,
+    paAgreements,
   ] = await Promise.all([
     prisma.evidence.groupBy({
       by: ['status'],
@@ -108,6 +110,10 @@ export default async function DashboardPage() {
       },
       orderBy: { updatedAt: 'desc' },
       take: 10,
+    }),
+    prisma.pAAgreement.findMany({
+      where: schoolIds.length > 0 ? { schoolId: { in: schoolIds } } : undefined,
+      select: { positionType: true, status: true, isPassed: true, totalScore: true },
     }),
     ]);
 
@@ -214,7 +220,24 @@ export default async function DashboardPage() {
     };
   });
 
+  // PA Summary stats
+  const paTeacherCount = paAgreements.filter((a) => a.positionType === 'TEACHER').length;
+  const paPrincipalCount = paAgreements.filter((a) => a.positionType === 'PRINCIPAL').length;
+  const paPassedCount = paAgreements.filter((a) => a.isPassed === true).length;
+  const paPendingCount = paAgreements.filter((a) => a.isPassed === null).length;
+  const paTotal = paAgreements.length;
+
   const quickLinkCards = [
+    {
+      title: 'เก็บงาน',
+      description: 'เพิ่มหลักฐาน + AI เชื่อมโยงตัวชี้วัด QA/PA อัตโนมัติ',
+      href: '/work-collection',
+      gradient: 'from-emerald-50 via-white to-white',
+      border: 'border-emerald-200',
+      text: 'text-emerald-700',
+      iconSrc: '/evidance_icon.png',
+      iconAlt: 'ไอคอนเก็บงาน',
+    },
     {
       title: 'หลักฐาน',
       description: 'จัดการหลักฐานการประกันคุณภาพ',
@@ -244,6 +267,26 @@ export default async function DashboardPage() {
       text: 'text-rose-700',
       iconSrc: '/loss_doc_icon.png',
       iconAlt: 'ไอคอนรายการหลักฐานที่ยังขาด',
+    },
+    {
+      title: 'โปรแกรมเสริม',
+      description: 'ระบบเพิ่มเติมสำหรับศูนย์กลางหลักฐาน',
+      href: '/extra-programs',
+      gradient: 'from-indigo-50 via-white to-white',
+      border: 'border-indigo-200',
+      text: 'text-indigo-700',
+      iconSrc: '/extra_program.png',
+      iconAlt: 'ไอคอนโปรแกรมเสริม',
+    },
+    {
+      title: 'การประเมิน PA',
+      description: 'การประเมินผลการพัฒนางานตามข้อตกลง (PA)',
+      href: '/pa',
+      gradient: 'from-teal-50 via-white to-white',
+      border: 'border-teal-200',
+      text: 'text-teal-700',
+      iconSrc: '/icon_plan.png',
+      iconAlt: 'ไอคอน PA',
     },
   ];
 
@@ -301,25 +344,26 @@ export default async function DashboardPage() {
       {/* Quick links */}
       <div>
         <h2 className="text-xl font-semibold mb-4">เมนูหลัก</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {quickLinkCards.map((card) => (
-            <a
+            <Link
               key={card.href}
               href={card.href}
-          className={`relative rounded-xl border p-6 shadow-sm transition-shadow hover:shadow-md bg-gradient-to-br ${card.gradient} ${card.border}`}
+              className={`relative block rounded-xl border p-6 shadow-sm transition-shadow hover:shadow-md bg-gradient-to-br ${card.gradient} ${card.border}`}
             >
-          <div className="relative z-10">
-            <h3 className={`font-semibold ${card.text}`}>{card.title}</h3>
-            <p className="text-sm text-muted-foreground mt-1">{card.description}</p>
-          </div>
+              <div className="relative z-10">
+                <h3 className={`font-semibold ${card.text}`}>{card.title}</h3>
+                <p className="text-sm text-muted-foreground mt-1">{card.description}</p>
+              </div>
               <Image
                 src={card.iconSrc}
                 alt={card.iconAlt}
                 width={126}
                 height={126}
+                unoptimized
                 className="pointer-events-none select-none absolute -top-8 -right-4 h-28 w-28 opacity-95 drop-shadow-md"
               />
-            </a>
+            </Link>
           ))}
         </div>
       </div>
@@ -337,6 +381,38 @@ export default async function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* PA Summary */}
+      {paTotal > 0 && (
+        <div className="rounded-xl border bg-card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">สรุป PA (ข้อตกลงพัฒนางาน)</h2>
+            <a href="/pa" className="text-sm text-primary hover:underline">ดูทั้งหมด</a>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-lg border p-4 text-center">
+              <p className="text-sm text-muted-foreground">ข้อตกลงทั้งหมด</p>
+              <p className="text-2xl font-bold mt-1">{paTotal}</p>
+            </div>
+            <div className="rounded-lg border p-4 text-center">
+              <p className="text-sm text-muted-foreground">PA ครู</p>
+              <p className="text-2xl font-bold mt-1 text-blue-600">{paTeacherCount}</p>
+            </div>
+            <div className="rounded-lg border p-4 text-center">
+              <p className="text-sm text-muted-foreground">PA ผู้บริหาร</p>
+              <p className="text-2xl font-bold mt-1 text-purple-600">{paPrincipalCount}</p>
+            </div>
+            <div className="rounded-lg border p-4 text-center">
+              <p className="text-sm text-muted-foreground">ผ่านการประเมิน</p>
+              <p className="text-2xl font-bold mt-1 text-green-600">{paPassedCount}</p>
+            </div>
+            <div className="rounded-lg border p-4 text-center">
+              <p className="text-sm text-muted-foreground">รอประเมิน</p>
+              <p className="text-2xl font-bold mt-1 text-amber-600">{paPendingCount}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-3">

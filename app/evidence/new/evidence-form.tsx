@@ -13,6 +13,7 @@ import { getEvidenceStatusLabel } from '@/lib/status';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Swal from 'sweetalert2';
+import { getAcademicYearOptions, getFiscalYearOptions } from '@/lib/year-options';
 
 interface School {
   id: string;
@@ -58,7 +59,8 @@ interface IndicatorData {
 interface EvidenceFormProps {
   schools: School[];
   levels: Level[];
-  currentFiscalYear: number;
+  currentFiscalYear: number; // ปีงบประมาณ
+  currentAcademicYear: number; // ปีการศึกษา
   currentUserId: string;
   userRoles: Array<{ role: string; schoolId: string; schoolName: string }>;
   indicatorIdParam?: string | null;
@@ -70,6 +72,7 @@ export default function EvidenceForm({
   schools,
   levels,
   currentFiscalYear,
+  currentAcademicYear,
   currentUserId,
   userRoles,
   indicatorIdParam,
@@ -90,6 +93,8 @@ export default function EvidenceForm({
   const [selectedIndicatorId, setSelectedIndicatorId] = useState<string>(
     indicatorIdParam || ''
   );
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState<number>(currentFiscalYear);
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<number>(currentAcademicYear);
   
   const [standards, setStandards] = useState<Standard[]>([]);
   const [indicators, setIndicators] = useState<Indicator[]>([]);
@@ -198,11 +203,11 @@ export default function EvidenceForm({
     }
   }, [selectedStandardId, indicatorData]);
 
-  // Load evidence code เมื่อเลือก indicator
+  // Load evidence code เมื่อเลือก indicator หรือเปลี่ยน fiscalYear
   useEffect(() => {
     if (selectedIndicatorId) {
       setIsLoadingCode(true);
-      getNextEvidenceCode(selectedIndicatorId, currentFiscalYear)
+      getNextEvidenceCode(selectedIndicatorId, selectedFiscalYear)
         .then((result) => {
           if (result.success && result.data) {
             setEvidenceCode(result.data);
@@ -215,7 +220,7 @@ export default function EvidenceForm({
     } else {
       setEvidenceCode('');
     }
-  }, [selectedIndicatorId, currentFiscalYear]);
+  }, [selectedIndicatorId, selectedFiscalYear]);
 
   // Load sub indicators เมื่อเลือก indicator
   useEffect(() => {
@@ -392,16 +397,43 @@ export default function EvidenceForm({
         {/* Fiscal Year */}
         <div className="space-y-2">
           <label htmlFor="fiscalYear" className="text-sm font-medium">
-            ปีงบประมาณ
+            ปีงบประมาณ <span className="text-destructive">*</span>
           </label>
-          <input
-            type="number"
+          <select
             id="fiscalYear"
             name="fiscalYear"
-            readOnly
-            value={currentFiscalYear}
-            className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm ring-offset-background cursor-not-allowed"
-          />
+            required
+            value={selectedFiscalYear}
+            onChange={(e) => setSelectedFiscalYear(parseInt(e.target.value))}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {getFiscalYearOptions(2566).map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Academic Year */}
+        <div className="space-y-2">
+          <label htmlFor="academicYear" className="text-sm font-medium">
+            ปีการศึกษา <span className="text-destructive">*</span>
+          </label>
+          <select
+            id="academicYear"
+            name="academicYear"
+            required
+            value={selectedAcademicYear}
+            onChange={(e) => setSelectedAcademicYear(parseInt(e.target.value))}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {getAcademicYearOptions(2566).map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Evidence Code */}

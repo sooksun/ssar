@@ -21,19 +21,16 @@ const authRoute = NextAuth({
 
         try {
           const user = await prisma.user.findUnique({
-            where: {
-              email: credentials.email as string,
-            },
+            where: { email: credentials.email as string },
             include: {
               primarySchool: true,
               schoolRoles: {
-                include: {
-                  role: true,
-                  school: true,
-                },
-                where: {
-                  isActive: true,
-                },
+                where: { isActive: true },
+                include: { role: true, school: true },
+              },
+              areaRoles: {
+                where: { isActive: true },
+                include: { role: true, area: true },
               },
             },
           });
@@ -47,17 +44,25 @@ const authRoute = NextAuth({
             return null;
           }
 
+          const schoolRoleEntries = user.schoolRoles.map((sr) => ({
+            role: sr.role.code,
+            schoolId: sr.schoolId.toString(),
+            schoolName: sr.school.name,
+          }));
+          const areaRoleEntries = user.areaRoles.map((ar) => ({
+            role: ar.role.code,
+            schoolId: '', // ระดับเขตไม่มี school เดียว — ขอบเขตใช้ getUserSchools()
+            schoolName: ar.area.nameTh,
+          }));
+          const roles = [...schoolRoleEntries, ...areaRoleEntries];
+
           return {
             id: user.id.toString(),
             email: user.email,
             name: user.fullName,
             primarySchoolId: user.schoolId ? user.schoolId.toString() : undefined,
             primarySchoolName: user.primarySchool?.name,
-            roles: user.schoolRoles.map((sr) => ({
-              role: sr.role.code,
-              schoolId: sr.schoolId.toString(),
-              schoolName: sr.school.name,
-            })),
+            roles,
           };
         } catch (error) {
           console.error('Auth error:', error);

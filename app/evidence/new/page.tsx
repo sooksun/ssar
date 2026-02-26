@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth/nextauth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
-import { thaiFiscalYear } from '@/lib/evidence';
+import { thaiAcademicYear, thaiFiscalYear } from '@/lib/evidence';
 import { getIndicatorById } from '@/app/actions/evidence';
 import EvidenceForm from './evidence-form';
 import { BackLink } from '@/components/ui/back-link';
@@ -62,7 +62,8 @@ export default async function NewEvidencePage({
     },
   });
 
-  // ปีงบประมาณปัจจุบัน
+  // ปีการศึกษาและปีงบประมาณปัจจุบัน
+  const currentAcademicYear = thaiAcademicYear();
   const currentFiscalYear = thaiFiscalYear();
 
   // ดึง indicatorId จาก URL parameter (ถ้ามี)
@@ -91,6 +92,7 @@ export default async function NewEvidencePage({
         schools={schools}
         levels={levels}
         currentFiscalYear={currentFiscalYear}
+        currentAcademicYear={currentAcademicYear}
         currentUserId={user.id}
         userRoles={roles}
         indicatorIdParam={indicatorIdParam}

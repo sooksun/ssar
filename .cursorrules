@@ -123,3 +123,28 @@
 - Use JSDoc for functions
 - Keep README.md updated
 - Document API routes
+
+## Teaching Media System (สื่อการสอน)
+- **Purpose**: บันทึกสื่อการสอนสำหรับข้อ 2.6 - การใช้สื่อ อุปกรณ์ และระบบเทคโนโลยี
+- **Models**: `TeachingMedia`, `TeachingMediaFile` in Prisma schema
+- **Routes**: `/teaching-media` (list), `/teaching-media/new` (create), `/teaching-media/[id]` (detail)
+- **Server Actions**: `app/actions/teaching-media.ts` - CRUD operations
+- **Validation**: `lib/validations/teaching-media.ts` - Zod schemas
+- **Features**:
+  - บันทึกชื่อสื่อ, รายละเอียด, ชื่อครูผู้ผลิต
+  - อัปโหลดภาพ/วิดีโอการนำสื่อไปใช้
+  - เชื่อมโยงกับตัวชี้วัด 2.6 (ระดับพื้นฐาน)
+  - ใช้ปีการศึกษา (academicYear) แทนปีงบประมาณ
+
+## Lesson Plan System (แผนการสอน)
+- **Purpose**: บันทึกแผนการสอนและบันทึกหลังแผนของครู
+- **Models**: `LessonPlan`, `LessonPlanFile` in Prisma schema
+- **Routes**: `/lesson-plans` (list), `/lesson-plans/new` (create), `/lesson-plans/[id]` (detail)
+- **Server Actions**: `app/actions/lesson-plan.ts` - CRUD operations
+- **Validation**: `lib/validations/lesson-plan.ts` - Zod schemas
+- **Features**:
+  - บันทึกชื่อแผน, รายละเอียด, ชื่อครูผู้เขียน
+  - บันทึกหลังแผน (reflection field)
+  - อัปโหลดไฟล์แผนการสอนและบันทึกหลังแผน (fileType: PLAN, REFLECTION, OTHER)
+  - ระบุวิชา, ระดับชั้น, วันที่ใช้แผน
+  - ใช้ปีการศึกษา (academicYear)

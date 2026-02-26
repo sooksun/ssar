@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import { Kanit } from 'next/font/google';
 import './globals.css';
-import LogoutButton from '@/components/logout-button';
+import AppHeader from '@/components/app-header';
 import { auth } from '@/lib/auth/nextauth';
 
 const kanit = Kanit({
@@ -15,6 +14,15 @@ const kanit = Kanit({
 export const metadata: Metadata = {
   title: 'QA Evidence Center (สมศ.)',
   description: 'ระบบจัดการหลักฐานการประกันคุณภาพภายนอก',
+  icons: {
+    icon: [
+      { url: '/favicon.png', sizes: 'any', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/web-app-manifest-192x192.png', sizes: '192x192', type: 'image/png' },
+    ],
+  },
+  manifest: '/manifest.json',
 };
 
 export default async function RootLayout({
@@ -25,32 +33,10 @@ export default async function RootLayout({
   const session = await auth();
 
   return (
-    <html lang="th">
-      <body className={`${kanit.variable} font-sans antialiased`}>
-        <div className="min-h-screen bg-background">
-          <header className="border-b bg-white">
-            <div className="mx-auto flex items-center justify-between px-6 py-4">
-              <Image
-                src="/logo_qa.png"
-                alt="QA Evidence Center"
-                width={657}
-                height={120}
-                priority
-                className="h-25 w-[657px] max-w-full object-contain"
-              />
-              {session && (
-                <div className="flex items-center gap-4 pr-[7px]">
-                  <div className="hidden text-right md:block">
-                    <p className="text-sm font-medium">{session.user?.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {session.user?.primarySchoolName || ''}
-                    </p>
-                  </div>
-                  <LogoutButton />
-                </div>
-              )}
-            </div>
-          </header>
+    <html lang="th" suppressHydrationWarning>
+      <body className={`${kanit.variable} font-sans antialiased`} suppressHydrationWarning>
+        <div className="min-h-screen bg-background" suppressHydrationWarning>
+          <AppHeader session={session} />
           <main>{children}</main>
         </div>
       </body>

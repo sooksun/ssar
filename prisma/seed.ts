@@ -7,28 +7,41 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 เริ่มต้น seed ข้อมูล...');
 
-  // 1. Roles
+  // 1. Roles — ระดับโรงเรียน: Teacher, School_director, School_admin | ระดับเขต: Area_head_office, Area_admin
   console.log('📝 สร้าง Roles...');
-  const [adminRole, qaLeadRole, teacherRole, assessorRole] = await Promise.all([
+  const [
+    adminRole,
+    qaLeadRole,
+    teacherRole,
+    assessorRole,
+    schoolDirectorRole,
+    schoolAdminRole,
+    areaHeadOfficeRole,
+    areaAdminRole,
+  ] = await Promise.all([
+    prisma.role.upsert({ where: { code: 'ADMIN' }, update: {}, create: { code: 'ADMIN', name: 'ผู้ดูแลระบบ' } }),
+    prisma.role.upsert({ where: { code: 'QA_LEAD' }, update: {}, create: { code: 'QA_LEAD', name: 'ผู้นำระบบ QA' } }),
+    prisma.role.upsert({ where: { code: 'TEACHER' }, update: {}, create: { code: 'TEACHER', name: 'ครู (บันทึกข้อมูลโดยตรง)' } }),
+    prisma.role.upsert({ where: { code: 'ASSESSOR' }, update: {}, create: { code: 'ASSESSOR', name: 'ผู้ประเมิน' } }),
     prisma.role.upsert({
-      where: { code: 'ADMIN' },
+      where: { code: 'SCHOOL_DIRECTOR' },
       update: {},
-      create: { code: 'ADMIN', name: 'ผู้ดูแลระบบ' },
+      create: { code: 'SCHOOL_DIRECTOR', name: 'ผู้อำนวยการโรงเรียน (จัดทำรายงานจากข้อมูลครู)' },
     }),
     prisma.role.upsert({
-      where: { code: 'QA_LEAD' },
+      where: { code: 'SCHOOL_ADMIN' },
       update: {},
-      create: { code: 'QA_LEAD', name: 'ผู้นำระบบ QA' },
+      create: { code: 'SCHOOL_ADMIN', name: 'ผู้ดูแลระบบระดับโรงเรียน' },
     }),
     prisma.role.upsert({
-      where: { code: 'TEACHER' },
+      where: { code: 'AREA_HEAD_OFFICE' },
       update: {},
-      create: { code: 'TEACHER', name: 'ครู' },
+      create: { code: 'AREA_HEAD_OFFICE', name: 'ผู้อำนวยการเขตพื้นที่การศึกษา' },
     }),
     prisma.role.upsert({
-      where: { code: 'ASSESSOR' },
+      where: { code: 'AREA_ADMIN' },
       update: {},
-      create: { code: 'ASSESSOR', name: 'ผู้ประเมิน' },
+      create: { code: 'AREA_ADMIN', name: 'ผู้ดูแลระบบระดับเขตพื้นที่' },
     }),
   ]);
   console.log('✅ สร้าง Roles สำเร็จ');
@@ -119,13 +132,28 @@ async function main() {
   }
   console.log(`✅ สร้าง QASubIndicators สำเร็จ (${subIndicatorCount} รายการ)`);
 
-  // 6. Demo School
+  // 5.5 สำนักงานเขตพื้นที่การศึกษา (รองรับหลายสังกัด สพฐ.)
+  console.log('📝 สร้าง EducationServiceArea...');
+  const demoArea = await prisma.educationServiceArea.upsert({
+    where: { code: 'กทม.1' },
+    update: { nameTh: 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษากรุงเทพมหานคร เขต 1', province: 'กรุงเทพมหานคร' },
+    create: {
+      code: 'กทม.1',
+      nameTh: 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษากรุงเทพมหานคร เขต 1',
+      province: 'กรุงเทพมหานคร',
+      sortNo: 1,
+    },
+  });
+  console.log('✅ สร้าง EducationServiceArea สำเร็จ');
+
+  // 6. Demo School (ผูกเขตพื้นที่)
   console.log('📝 สร้าง Demo School...');
   const demoSchool = await prisma.school.upsert({
     where: { id: BigInt(1) },
     update: {
       sc_id: BigInt(10001),
       name: 'โรงเรียนตัวอย่าง',
+      areaId: demoArea.id,
       area_name: 'กรุงเทพมหานคร',
       province: 'กรุงเทพมหานคร',
       level_type: 'BASIC',
@@ -134,6 +162,7 @@ async function main() {
       id: BigInt(1),
       sc_id: BigInt(10001),
       name: 'โรงเรียนตัวอย่าง',
+      areaId: demoArea.id,
       area_name: 'กรุงเทพมหานคร',
       province: 'กรุงเทพมหานคร',
       level_type: 'BASIC',
@@ -161,8 +190,8 @@ async function main() {
   });
   console.log('✅ สร้าง Admin User สำเร็จ');
 
-  // 7.1 Demo Users สำหรับแต่ละบทบาท
-  console.log('📝 สร้าง Demo Users (QA Lead / Teacher / Assessor)...');
+  // 7.1 Demo Users สำหรับแต่ละบทบาท (Teacher / School director / School admin / Area)
+  console.log('📝 สร้าง Demo Users...');
   const demoUsers = [
     {
       fullName: 'ครูฝ่ายประกันคุณภาพ',
@@ -171,6 +200,7 @@ async function main() {
       phone: '0890000001',
       roleId: qaLeadRole.id,
       roleLabel: 'QA_LEAD',
+      scope: 'school' as const,
     },
     {
       fullName: 'ครูผู้จัดทำหลักฐาน',
@@ -179,6 +209,7 @@ async function main() {
       phone: '0890000002',
       roleId: teacherRole.id,
       roleLabel: 'TEACHER',
+      scope: 'school' as const,
     },
     {
       fullName: 'ผู้ประเมินภายนอก',
@@ -187,6 +218,25 @@ async function main() {
       phone: '0890000003',
       roleId: assessorRole.id,
       roleLabel: 'ASSESSOR',
+      scope: 'school' as const,
+    },
+    {
+      fullName: 'ผู้อำนวยการโรงเรียนตัวอย่าง',
+      email: 'director@example.com',
+      password: 'director123',
+      phone: '0890000004',
+      roleId: schoolDirectorRole.id,
+      roleLabel: 'SCHOOL_DIRECTOR',
+      scope: 'school' as const,
+    },
+    {
+      fullName: 'ผู้ดูแลระบบเขตพื้นที่',
+      email: 'areaadmin@example.com',
+      password: 'areaadmin123',
+      phone: '0890000005',
+      roleId: areaAdminRole.id,
+      roleLabel: 'AREA_ADMIN',
+      scope: 'area' as const,
     },
   ];
 
@@ -202,41 +252,46 @@ async function main() {
         fullName: demo.fullName,
         password: hashedPassword,
         phone: demo.phone,
-        schoolId: demoSchool.sc_id,
+        schoolId: demo.scope === 'school' ? demoSchool.sc_id : undefined,
       },
       create: {
         fullName: demo.fullName,
         email: demo.email,
         password: hashedPassword,
         phone: demo.phone,
-        schoolId: demoSchool.sc_id,
+        schoolId: demo.scope === 'school' ? demoSchool.sc_id : undefined,
       },
     });
 
-    const existingRole = await prisma.userSchoolRole.findFirst({
-      where: {
-        userId: user.id,
-        schoolId: demoSchool.sc_id,
-      },
-    });
-
-    if (!existingRole) {
-      await prisma.userSchoolRole.create({
-        data: {
-          userId: user.id,
-          schoolId: demoSchool.sc_id,
-          roleId: demo.roleId,
-          isActive: true,
-        },
+    if (demo.scope === 'school') {
+      const existingRole = await prisma.userSchoolRole.findFirst({
+        where: { userId: user.id, schoolId: demoSchool.sc_id },
       });
+      if (!existingRole) {
+        await prisma.userSchoolRole.create({
+          data: { userId: user.id, schoolId: demoSchool.sc_id, roleId: demo.roleId, isActive: true },
+        });
+      } else {
+        await prisma.userSchoolRole.update({
+          where: { id: existingRole.id },
+          data: { roleId: demo.roleId, isActive: true },
+        });
+      }
     } else {
-      await prisma.userSchoolRole.update({
-        where: { id: existingRole.id },
-        data: {
-          roleId: demo.roleId,
-          isActive: true,
-        },
+      // ระดับเขตพื้นที่: UserAreaRole
+      const existingAreaRole = await prisma.userAreaRole.findFirst({
+        where: { userId: user.id, areaId: demoArea.id },
       });
+      if (!existingAreaRole) {
+        await prisma.userAreaRole.create({
+          data: { userId: user.id, areaId: demoArea.id, roleId: demo.roleId, isActive: true },
+        });
+      } else {
+        await prisma.userAreaRole.update({
+          where: { id: existingAreaRole.id },
+          data: { roleId: demo.roleId, isActive: true },
+        });
+      }
     }
 
     demoCredentials.push({
@@ -279,7 +334,7 @@ async function main() {
 
   console.log('\n✅ Seed ข้อมูลสำเร็จทั้งหมด!');
   console.log('\n📋 สรุปข้อมูลที่สร้าง:');
-  console.log(`   - Roles: 4 roles`);
+  console.log(`   - Roles: 8 roles (รวม SCHOOL_DIRECTOR, SCHOOL_ADMIN, AREA_HEAD_OFFICE, AREA_ADMIN)`);
   console.log(`   - EduLevels: ${levelRecords.length} levels`);
   console.log(`   - QAStandards: ${standardCount} standards`);
   console.log(`   - QAIndicators: ${indicatorCount} indicators`);

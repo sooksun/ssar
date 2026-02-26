@@ -14,7 +14,7 @@
 - [ ] สร้าง seed script แบบ idempotent (roles, demo users, schools, levels, standards, indicators, sub-indicators)
 - [ ] ตั้งค่า NextAuth (Credentials provider)
 - [ ] สร้าง middleware สำหรับ RBAC
-- [ ] สร้าง helper functions: `thaiFiscalYear()`, `nextEvidenceCode()`
+- [ ] สร้าง helper functions: `thaiAcademicYear()`, `nextEvidenceCode()`
 - [ ] เขียน unit tests สำหรับ helpers
 
 ### Definition of Done

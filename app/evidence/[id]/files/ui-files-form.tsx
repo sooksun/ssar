@@ -15,6 +15,8 @@ import {
   describeAllowedFileTypes,
   isImageFile,
   isVideoFile,
+  MAX_FILE_SIZE_BYTES,
+  VIDEO_MAX_SIZE_MB,
 } from '@/lib/file-types';
 import Swal from 'sweetalert2';
 
@@ -54,7 +56,8 @@ export default function FilesForm({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editState, setEditState] = useState<Record<string, Partial<FileItem>>>({});
   const allowedListText = describeAllowedFileTypes();
-  const fileAccept = '.pdf,.jpg,.jpeg,.png,.mp4,.webm,.mov,.avi';
+  const fileAccept =
+    '.pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.mp4,.webm,.mov,.avi';
 
   const isLinkType = useMemo(() => storageType !== 'URL', [storageType]);
 
@@ -188,11 +191,18 @@ export default function FilesForm({
                     if (videoFiles.length === 1) {
                       const videoFile = videoFiles[0];
                       const videoSizeMB = videoFile.size / (1024 * 1024);
-                      if (videoSizeMB > 1000) {
-                        setError('ขนาดวิดีโอต้องไม่เกิน 1000 MB');
+                      if (videoSizeMB > VIDEO_MAX_SIZE_MB) {
+                        setError(`ขนาดวิดีโอต้องไม่เกิน ${VIDEO_MAX_SIZE_MB} MB`);
                         e.target.value = '';
                         return;
                       }
+                    }
+                    const nonVideo = fileArray.filter((x) => !isVideoFile(x.name, x.type));
+                    const oversize = nonVideo.find((x) => x.size > MAX_FILE_SIZE_BYTES);
+                    if (oversize) {
+                      setError(`ขนาดไฟล์ต้องไม่เกิน 10 MB: ${oversize.name}`);
+                      e.target.value = '';
+                      return;
                     }
                     setError('');
                   }
@@ -201,11 +211,13 @@ export default function FilesForm({
               <p className="text-xs text-muted-foreground">
                 รองรับไฟล์ {allowedListText}
                 <br />
-                • รูปภาพ: อัปโหลดได้มากสุด 20 รูป (รูปแรกจะเป็น thumbnail)
+                • ไฟล์ทั่วไป (รูป/เอกสาร): ขนาดไม่เกิน 10 MB (รูปภาพจะ resize และบีบอัดอัตโนมัติ)
                 <br />
-                • วิดีโอ: อัปโหลดได้ 1 ไฟล์ ขนาดไม่เกิน 1000 MB (จะสร้าง thumbnail อัตโนมัติ)
+                • รูปภาพ: อัปโหลดได้มากสุด 20 รูป (รูปแรกจะเป็น thumbnail ของกลุ่มรูปภาพเท่านั้น)
                 <br />
-                • ตั้งเป็นไฟล์หลักได้เฉพาะรูปภาพ (JPG, JPEG, PNG)
+                • วิดีโอ: อัปโหลดได้ 1 ไฟล์ ขนาดไม่เกิน {VIDEO_MAX_SIZE_MB} MB (จะสร้าง thumbnail อัตโนมัติ)
+                <br />
+                • ตั้งเป็นไฟล์หลัก (thumbnail ของหลักฐาน) ได้เฉพาะรูปภาพ (JPG, JPEG, PNG) - ให้ user เป็นผู้กำหนดเอง
               </p>
             </div>
           )}
@@ -494,7 +506,7 @@ export default function FilesForm({
                           <label className="mt-6 inline-flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
-                              defaultChecked={f.isPrimary}
+                              checked={current.isPrimary !== undefined ? current.isPrimary : f.isPrimary}
                               disabled={!isImage}
                               onChange={(e) =>
                                 setEditState((s) => ({
@@ -550,7 +562,10 @@ export default function FilesForm({
                                 if (current.fileName) fd.set('fileName', current.fileName);
                                 if (current.externalUrl) fd.set('externalUrl', current.externalUrl);
                                 if (current.storagePath) fd.set('storagePath', current.storagePath);
-                                if (current.isPrimary) fd.set('isPrimary', 'on');
+                                // ส่ง isPrimary ไปทุกครั้ง (checked = 'on', unchecked = 'off')
+                                // ใช้ค่าจาก current.isPrimary ถ้ามีการเปลี่ยนแปลง หรือใช้ค่าจาก f.isPrimary ถ้าไม่เปลี่ยนแปลง
+                                const isPrimaryValue = current.isPrimary !== undefined ? current.isPrimary : f.isPrimary;
+                                fd.set('isPrimary', isPrimaryValue ? 'on' : 'off');
                                 try {
                                   const res = await updateEvidenceFile(fd);
                                   if (!res.success) {

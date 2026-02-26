@@ -1,0 +1,359 @@
+// =============================================================================
+// PA (Performance Agreement) Database Schema Extension
+// สำหรับการประเมินผลการพัฒนางานตามข้อตกลง
+// =============================================================================
+// 
+// โครงสร้างหลัก:
+// - PAAspect: 5 ด้านของ PA
+// - PAIndicator: 15 ตัวชี้วัดในส่วนที่ 1
+// - PAConsideration: 3 ข้อพิจารณาในส่วนที่ 2
+// - PAAgreement: ข้อตกลง PA ของแต่ละบุคคล/ปี
+// - PAAgreementItem: รายการประเมินแต่ละตัวชี้วัด
+// - PAChallengeItem: ประเด็นท้าทาย (ส่วนที่ 2)
+// - PAEvidenceMapping: เชื่อมโยงหลักฐานกับตัวชี้วัด PA
+//
+// การเชื่อมโยงหลักฐาน:
+// - หลักฐานหนึ่งชิ้น (Evidence) สามารถเชื่อมกับหลายตัวชี้วัดได้ทั้ง QA และ PA
+// - ใช้ PAEvidenceMapping เชื่อม Evidence เข้ากับ PAIndicator
+// - ใช้ SelfAssessmentEvidenceLink เชื่อม Evidence เข้ากับ QAIndicator (มีอยู่แล้ว)
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 1. ด้าน PA (PA Aspect) - 5 ด้าน
+// -----------------------------------------------------------------------------
+model PAAspect {
+  id          BigInt        @id @default(autoincrement())
+  code        String        @unique // P1, P2, P3, P4, P5
+  nameTh      String        // ชื่อด้านภาษาไทย
+  sortNo      Int           // ลำดับการแสดงผล
+  description String?       // คำอธิบายเพิ่มเติม
+  maxScore    Int           @default(60) // คะแนนเต็ม (ส่วนที่ 1 = 60, ส่วนที่ 2 = 40)
+  part        PAPart        @default(PART1) // ส่วนที่ 1 หรือ 2
+  
+  indicators  PAIndicator[] // ตัวชี้วัดในด้านนี้
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("paaspect")
+}
+
+enum PAPart {
+  PART1 // ส่วนที่ 1: ข้อตกลงในการพัฒนางานตามมาตรฐานตำแหน่ง (60 คะแนน)
+  PART2 // ส่วนที่ 2: ข้อตกลงประเด็นท้าทาย (40 คะแนน)
+}
+
+// -----------------------------------------------------------------------------
+// 2. ตัวชี้วัด PA (PA Indicator) - 15 ตัวชี้วัดในส่วนที่ 1
+// -----------------------------------------------------------------------------
+model PAIndicator {
+  id           BigInt    @id @default(autoincrement())
+  aspect       PAAspect  @relation(fields: [aspectId], references: [id])
+  aspectId     BigInt
+  
+  code         String    // รหัสตัวชี้วัด เช่น 1.1, 1.2, 2.1
+  nameTh       String    // ชื่อตัวชี้วัด
+  description  String?   // คำอธิบาย/เกณฑ์การประเมิน
+  sortNo       Int       // ลำดับภายในด้าน
+  
+  // คะแนนสำหรับแต่ละระดับ (ไม่บังคับ - สามารถคำนวณตามสูตรได้)
+  weight       Decimal?  @db.Decimal(5, 2) // น้ำหนักคะแนน (ถ้ามี)
+  
+  // ความสัมพันธ์
+  evidences    PAEvidenceMapping[]
+  agreementItems PAAgreementItem[]
+  
+  // เกณฑ์คำอธิบายคะแนน (ระดับ 1-4)
+  scales       PAIndicatorScale[]
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([aspectId, code])
+  @@index([aspectId])
+  @@map("paindicator")
+}
+
+// -----------------------------------------------------------------------------
+// 3. เกณฑ์คำอธิบายคะแนนระดับ 1-4 สำหรับแต่ละตัวชี้วัด PA
+// -----------------------------------------------------------------------------
+model PAIndicatorScale {
+  id            BigInt      @id @default(autoincrement())
+  indicator     PAIndicator @relation(fields: [indicatorId], references: [id])
+  indicatorId   BigInt
+  
+  score         Int         @db.TinyInt // 1, 2, 3, 4
+  labelTh       String      // ชื่อระดับ เช่น "ปฏิบัติได้ต่ำกว่าระดับที่คาดหวังมาก"
+  descriptionTh String?     // คำอธิบายละเอียด
+  criteriaTh    String?     // เกณฑ์การพิจารณา
+  
+  createdAt     DateTime    @default(now())
+
+  @@unique([indicatorId, score])
+  @@map("paindicatorscale")
+}
+
+// -----------------------------------------------------------------------------
+// 4. ข้อพิจารณาในส่วนที่ 2 (PA Consideration) - 3 รายการ
+// -----------------------------------------------------------------------------
+model PAConsideration {
+  id          BigInt    @id @default(autoincrement())
+  code        String    @unique // C1, C2.1, C2.2
+  nameTh      String    // ชื่อข้อพิจารณา
+  description String?   // คำอธิบาย/เกณฑ์
+  maxScore    Int       // คะแนนเต็ม (C1=20, C2.1=10, C2.2=10)
+  sortNo      Int
+  
+  // ความสัมพันธ์
+  challengeItems PAChallengeItem[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("paconsideration")
+}
+
+// -----------------------------------------------------------------------------
+// 5. ข้อตกลง PA ของแต่ละบุคคล/ปี (PA Agreement)
+// -----------------------------------------------------------------------------
+model PAAgreement {
+  id            BigInt    @id @default(autoincrement())
+  
+  // ข้อมูลผู้รับการประเมิน
+  school        School    @relation(fields: [schoolId], references: [sc_id])
+  schoolId      BigInt
+  
+  userId        BigInt    // ID ของผู้รับการประเมิน (ต้องมี user ในระบบ)
+  evaluatorId   BigInt?   // ID ของผู้ประเมิน (ถ้ามี)
+  
+  // ปีงบประมาณและรอบการประเมิน
+  fiscalYear    Int       // ปีงบประมาณ พ.ศ.
+  startDate     DateTime  // วันเริ่มต้นรอบประเมิน
+  endDate       DateTime  // วันสิ้นสุดรอบประเมิน
+  
+  // สถานะ
+  status        PAStatus  @default(DRAFT)
+  
+  // คะแนนรวม
+  totalScore    Decimal?  @db.Decimal(5, 2) // คะแนนรวม (100 คะแนน)
+  part1Score    Decimal?  @db.Decimal(5, 2) // ส่วนที่ 1 (60 คะแนน)
+  part2Score    Decimal?  @db.Decimal(5, 2) // ส่วนที่ 2 (40 คะแนน)
+  
+  // เกณฑ์การผ่าน
+  isPassed      Boolean?  // true = ผ่าน, false = ไม่ผ่าน, null = ยังไม่ประเมิน
+  passReason    String?   // เหตุผลกรณีไม่ผ่าน
+  
+  // หมายเหตุ
+  note          String?
+  
+  // ความสัมพันธ์
+  items         PAAgreementItem[]
+  challenge     PAChallengeItem?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  createdBy     BigInt?
+  updatedBy     BigInt?
+
+  @@unique([userId, fiscalYear]) // 1 คน 1 ปี = 1 ข้อตกลง
+  @@index([schoolId, fiscalYear])
+  @@index([status])
+  @@map("paagreement")
+}
+
+enum PAStatus {
+  DRAFT         // ร่าง
+  SUBMITTED     // ส่งข้อตกลง
+  IN_REVIEW     // อยู่ระหว่างประเมิน
+  EVALUATED     // ประเมินเสร็จแล้ว
+  APPROVED      // อนุมัติ
+  REJECTED      // ไม่อนุมัติ
+}
+
+// -----------------------------------------------------------------------------
+// 6. รายการประเมินแต่ละตัวชี้วัด (PA Agreement Item) - ส่วนที่ 1
+// -----------------------------------------------------------------------------
+model PAAgreementItem {
+  id              BigInt      @id @default(autoincrement())
+  
+  agreement       PAAgreement @relation(fields: [agreementId], references: [id])
+  agreementId     BigInt
+  
+  indicator       PAIndicator @relation(fields: [indicatorId], references: [id])
+  indicatorId     BigInt
+  
+  // ผลการประเมิน
+  score           Int?        @db.TinyInt // 1, 2, 3, 4
+  scoreValue      Decimal?    @db.Decimal(5, 2) // คะแนนที่คำนวณได้
+  
+  // หมายเหตุ
+  comment         String?
+  evaluatorNote   String?     // บันทึกของกรรมการ
+  
+  // ความสัมพันธ์กับหลักฐาน
+  evidenceLinks   PAEvidenceMapping[]
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([agreementId, indicatorId]) // ตัวชี้วัดละ 1 รายการต่อข้อตกลง
+  @@index([agreementId])
+  @@index([indicatorId])
+  @@map("paagreementitem")
+}
+
+// -----------------------------------------------------------------------------
+// 7. ประเด็นท้าทายในส่วนที่ 2 (PA Challenge Item)
+// -----------------------------------------------------------------------------
+model PAChallengeItem {
+  id                BigInt          @id @default(autoincrement())
+  
+  agreement         PAAgreement     @relation(fields: [agreementId], references: [id])
+  agreementId       BigInt          @unique // 1 ข้อตกลง = 1 ประเด็นท้าทาย
+  
+  // ข้อมูลประเด็นท้าทาย
+  title             String          // ชื่อประเด็นท้าทาย
+  description       String?         // รายละเอียด
+  objectives        String?         // วัตถุประสงค์
+  
+  // ผลการประเมินแยกตามข้อพิจารณา
+  c1MethodScore     Int?            @db.TinyInt // C1: วิธีดำเนินการ (1-4)
+  c1MethodComment   String?
+  
+  c21QuantScore     Int?            @db.TinyInt // C2.1: เชิงปริมาณ (1-4)
+  c21QuantComment   String?
+  
+  c22QualScore      Int?            @db.TinyInt // C2.2: เชิงคุณภาพ (1-4)
+  c22QualComment    String?
+  
+  // คะแนนรวมส่วนที่ 2
+  part2Total        Decimal?        @db.Decimal(5, 2)
+  
+  // ความสัมพันธ์กับข้อพิจารณาแยกรายการ
+  considerations    PAChallengeConsideration[]
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@map("pachallengeitem")
+}
+
+// -----------------------------------------------------------------------------
+// 8. ผลการประเมินรายข้อพิจารณา (PA Challenge Consideration)
+// -----------------------------------------------------------------------------
+model PAChallengeConsideration {
+  id              BigInt           @id @default(autoincrement())
+  
+  challenge       PAChallengeItem  @relation(fields: [challengeId], references: [id])
+  challengeId     BigInt
+  
+  consideration   PAConsideration  @relation(fields: [considerationId], references: [id])
+  considerationId BigInt
+  
+  // ผลการประเมิน
+  score           Int?             @db.TinyInt // 1, 2, 3, 4
+  scoreValue      Decimal?         @db.Decimal(5, 2) // คะแนนที่คำนวณได้
+  comment         String?
+  
+  // ความสัมพันธ์กับหลักฐาน
+  evidenceLinks   PAEvidenceMapping[]
+  
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([challengeId, considerationId])
+  @@map("pachallengeconsideration")
+}
+
+// -----------------------------------------------------------------------------
+// 9. การเชื่อมโยงหลักฐานกับตัวชี้วัด PA (PA Evidence Mapping)
+// -----------------------------------------------------------------------------
+// หลักการ: หลักฐานชิ้นเดียวกัน (Evidence) สามารถเชื่อมกับได้ทั้ง:
+// - QAIndicator (ผ่าน SelfAssessmentEvidenceLink - มีอยู่แล้ว)
+// - PAIndicator (ผ่าน PAEvidenceMapping - ใหม่)
+// - PAChallengeConsideration (ผ่าน PAEvidenceMapping)
+// -----------------------------------------------------------------------------
+model PAEvidenceMapping {
+  id              BigInt   @id @default(autoincrement())
+  
+  // หลักฐานหลัก (จากตาราง Evidence ที่มีอยู่)
+  evidence        Evidence @relation(fields: [evidenceId], references: [id])
+  evidenceId      BigInt
+  
+  // เชื่อมกับตัวชี้วัด PA (กรณีส่วนที่ 1)
+  agreementItem   PAAgreementItem? @relation(fields: [agreementItemId], references: [id])
+  agreementItemId BigInt?
+  
+  // เชื่อมกับข้อพิจารณา (กรณีส่วนที่ 2)
+  challengeConsideration PAChallengeConsideration? @relation(fields: [challengeConsiderationId], references: [id])
+  challengeConsiderationId BigInt?
+  
+  // หมายเหตุ เช่น "ใช้ประกอบเกณฑ์ระดับ 3"
+  note            String?
+  
+  // ระดับที่ใช้หลักฐานนี้ (ถ้าระบุ)
+  relevanceLevel   Int?     @db.TinyInt // 1, 2, 3, 4
+  
+  createdAt       DateTime @default(now())
+  createdBy       BigInt?
+
+  @@index([evidenceId])
+  @@index([agreementItemId])
+  @@index([challengeConsiderationId])
+  @@map("paevidencemapping")
+}
+
+// -----------------------------------------------------------------------------
+// 10. ตารางสรุปผลการประเมิน PA ตามมาตรฐานตำแหน่ง (สำหรับรายงาน)
+// -----------------------------------------------------------------------------
+model PASummary {
+  id              BigInt    @id @default(autoincrement())
+  
+  school          School    @relation(fields: [schoolId], references: [sc_id])
+  schoolId        BigInt
+  
+  userId          BigInt    // ผู้รับการประเมิน
+  fiscalYear      Int       // ปีงบประมาณ
+  
+  // คะแนนส่วนที่ 1 - แยกตามด้าน
+  p1AcademicScore Decimal?  @db.Decimal(5, 2) // ด้าน 1: การบริหารวิชาการ
+  p2ManagementScore Decimal? @db.Decimal(5, 2) // ด้าน 2: การบริหารจัดการ
+  p3InnovationScore Decimal? @db.Decimal(5, 2) // ด้าน 3: นวัตกรรม
+  p4NetworkScore  Decimal?  @db.Decimal(5, 2) // ด้าน 4: เครือข่าย
+  p5DevelopmentScore Decimal? @db.Decimal(5, 2) // ด้าน 5: พัฒนาตนเอง
+  
+  part1Total      Decimal?  @db.Decimal(5, 2) // รวมส่วนที่ 1
+  
+  // คะแนนส่วนที่ 2
+  c1MethodScore   Decimal?  @db.Decimal(5, 2) // วิธีดำเนินการ
+  c2QuantScore    Decimal?  @db.Decimal(5, 2) // เชิงปริมาณ
+  c2QualScore     Decimal?  @db.Decimal(5, 2) // เชิงคุณภาพ
+  part2Total      Decimal?  @db.Decimal(5, 2) // รวมส่วนที่ 2
+  
+  // คะแนนรวมและผล
+  grandTotal      Decimal?  @db.Decimal(5, 2)
+  isPassed        Boolean?
+  evaluationLevel String?   // ระดับการประเมิน เช่น "ริเริ่ม พัฒนา"
+  
+  // สถิติหลักฐาน
+  totalEvidenceCount Int    @default(0) // จำนวนหลักฐานทั้งหมด
+  qaLinkedCount      Int    @default(0)  // จำนวนที่เชื่อมกับ QA
+  paLinkedCount      Int    @default(0)  // จำนวนที่เชื่อมกับ PA
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, fiscalYear])
+  @@index([schoolId, fiscalYear])
+  @@map("pasummary")
+}
+
+// =============================================================================
+// การแก้ไขตารางที่มีอยู่ (Additions to existing tables)
+// =============================================================================
+
+// ต้องเพิ่ม relations ใน School model:
+// paAgreements PAAgreement[]
+// paSummaries PASummary[]
+
+// ต้องเพิ่ม relations ใน Evidence model:
+// paMappings PAEvidenceMapping[]

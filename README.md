@@ -57,11 +57,10 @@ ssar/
 ├── tasks.md            # Tasks สำหรับแต่ละบทบาท
 ├── acceptance.md       # Acceptance criteria
 ├── schema.prisma       # Prisma schema
-├── docker-compose.yml  # Docker configuration
 ├── .cursorrules        # Project rules สำหรับ Cursor
 ├── .env.example        # Environment variables template
 └── lib/
-    └── evidence.ts     # Helper functions (thaiFiscalYear, nextEvidenceCode)
+    └── evidence.ts     # Helper functions (thaiAcademicYear, nextEvidenceCode)
 ```
 
 ## การติดตั้งและเริ่มต้น
@@ -116,35 +115,21 @@ ssar/
 6. **เปิดเบราว์เซอร์**
    - ไปที่ `http://localhost:3000`
    - Login ด้วย: `admin@example.com` / `admin123`
+   
+      Login credentials:
+         [ADMIN] admin@example.com / admin123
+         [QA_LEAD] qalead@example.com / qalead123
+         [TEACHER] teacher@example.com / teacher123
+         [ASSESSOR] assessor@example.com / assessor123
+         [SCHOOL_DIRECTOR] director@example.com / director123
+         [AREA_ADMIN] areaadmin@example.com / areaadmin123
 
-### ใช้ Docker (แนะนำ)
-
-```bash
-# Start services
-docker-compose up -d
-
-# Run migrations และ seed
-docker-compose exec web npx prisma migrate dev
-docker-compose exec web npm run db:seed
-```
-
-ดูรายละเอียดเพิ่มเติมใน [README-DOCKER.md](./README-DOCKER.md)
-
-### ติดตั้งผ่าน CasaOS (ใช้ MariaDB ภายนอก)
-
-สำหรับการติดตั้งผ่าน CasaOS โดยใช้ Dockerfile และเชื่อมต่อกับ MariaDB ที่มีอยู่แล้ว ดูคู่มือละเอียดใน [README-CASAOS.md](./README-CASAOS.md)
-
-### ติดตั้งบน Ubuntu Server (Native - ไม่ใช้ Docker)
-
-สำหรับการติดตั้งบน Ubuntu Server โดยไม่ใช้ Docker ดูคู่มือละเอียดใน [README-UBUNTU.md](./README-UBUNTU.md)
 
 ## คำสั่งที่สำคัญ
 
 ### Development
 ```bash
-npm run dev          # เริ่ม development server
-npm run build        # Build สำหรับ production
-npm run start        # เริ่ม production server
+npm run dev          # เริ่ม development server (localhost:3000)
 npm run lint         # รัน ESLint
 ```
 
@@ -181,8 +166,8 @@ npm run test:e2e     # รัน E2E tests (Playwright)
 ### Helper Functions
 
 - **[lib/evidence.ts](./lib/evidence.ts)**:
-  - `thaiFiscalYear(date?)`: คำนวณปีงบประมาณไทย
-  - `nextEvidenceCode(indicatorId, fiscalYear)`: สร้างรหัสหลักฐานอัตโนมัติ
+  - `thaiAcademicYear(date?)`: คำนวณปีการศึกษาไทย (พ.ค.→เม.ย.)
+  - `nextEvidenceCode(indicatorId, academicYear)`: สร้างรหัสหลักฐานอัตโนมัติ
 
 ## การใช้งานเบื้องต้น
 
@@ -218,11 +203,12 @@ npm run test:e2e     # รัน E2E tests (Playwright)
 
 ## ปีงบประมาณไทย
 
-ระบบใช้ปีงบประมาณไทย (ต.ค.→ก.ย.):
-- **ต.ค.–ธ.ค.**: ปีค.ศ. + 544
-- **ม.ค.–ก.ย.**: ปีค.ศ. + 543
+ระบบนี้ใช้ปีการศึกษา (พ.ค.→เม.ย. ของปีถัดไป) ดังนี้:
+- **พ.ค.–ธ.ค.**: ปีค.ศ. + 543
+- **ม.ค.–เม.ย.**: ปีค.ศ. + 542
 
-ตัวอย่าง: วันที่ 15 ต.ค. 2567 → ปีงบประมาณ 2568
+ตัวอย่าง: วันที่ 15 พ.ค. 2567 → ปีการศึกษา 2567
+         วันที่ 10 ก.พ. 2568 → ปีการศึกษา 2567
 
 ## Evidence Code Format
 
@@ -290,14 +276,6 @@ npm run test:e2e     # รัน E2E tests (Playwright)
 
 [ระบุช่องทางติดต่อหรือ support]
 
-## Performance & Quality Benchmarks
-
-- Lighthouse (Desktop) score ≥ 85 สำหรับหน้า dashboard และหลัก ๆ หลังจากปรับปรุงตามเกณฑ์ (ทดสอบล่าสุด: ≥ 85)
-- ตรวจสอบ performance ได้โดยรัน:
-  ```bash
-  npm run build && npm run start
-  # จากนั้นใช้ Lighthouse (Chrome DevTools หรือเครื่องมือ CI) ทดสอบ
-  ```
 
 ## การแก้ไขปัญหา File Upload
 

@@ -8,19 +8,42 @@ type RbacRule = {
   methods?: string[];
 };
 
-const PUBLIC_PATH_PREFIXES = ['/login', '/api/auth', '/_next', '/favicon.ico', '/public', '/uploads'];
+const PUBLIC_PATH_PREFIXES = [
+  '/login',
+  '/api/auth',
+  '/_next',
+  '/favicon.ico',
+  '/public',
+  '/uploads',
+  '/manifest.json',
+  '/icon.png',
+];
 
+// ระดับโรงเรียน: TEACHER, SCHOOL_DIRECTOR, SCHOOL_ADMIN | ระดับเขต: AREA_HEAD_OFFICE, AREA_ADMIN (ดูได้หลายโรงเรียนในเขต)
 const RBAC_RULES: RbacRule[] = [
+  {
+    pattern: /^\/work-collection(\/|$)/,
+    allowedRoles: ['ADMIN', 'QA_LEAD', 'TEACHER', 'SCHOOL_DIRECTOR', 'SCHOOL_ADMIN', 'AREA_HEAD_OFFICE', 'AREA_ADMIN'],
+  },
   { pattern: /^\/admin(\/|$)/, allowedRoles: ['ADMIN'] },
   { pattern: /^\/api\/admin(\/|$)/, allowedRoles: ['ADMIN'] },
   { pattern: /^\/setup(\/|$)/, allowedRoles: ['ADMIN', 'QA_LEAD'] },
   { pattern: /^\/api\/setup(\/|$)/, allowedRoles: ['ADMIN', 'QA_LEAD'] },
-  { pattern: /^\/evidence\/new(\/|$)/, allowedRoles: ['ADMIN', 'QA_LEAD', 'TEACHER'] },
-  { pattern: /^\/evidence\/[^/]+\/edit(\/|$)/, allowedRoles: ['ADMIN', 'QA_LEAD', 'TEACHER'] },
-  { pattern: /^\/evidence\/[^/]+\/files(\/|$)/, allowedRoles: ['ADMIN', 'QA_LEAD', 'TEACHER'] },
+  {
+    pattern: /^\/evidence\/new(\/|$)/,
+    allowedRoles: ['ADMIN', 'QA_LEAD', 'TEACHER', 'SCHOOL_DIRECTOR', 'SCHOOL_ADMIN'],
+  },
+  {
+    pattern: /^\/evidence\/[^/]+\/edit(\/|$)/,
+    allowedRoles: ['ADMIN', 'QA_LEAD', 'TEACHER', 'SCHOOL_DIRECTOR', 'SCHOOL_ADMIN'],
+  },
+  {
+    pattern: /^\/evidence\/[^/]+\/files(\/|$)/,
+    allowedRoles: ['ADMIN', 'QA_LEAD', 'TEACHER', 'SCHOOL_DIRECTOR', 'SCHOOL_ADMIN'],
+  },
   {
     pattern: /^\/api\/evidence\/?$/,
-    allowedRoles: ['ADMIN', 'QA_LEAD', 'TEACHER'],
+    allowedRoles: ['ADMIN', 'QA_LEAD', 'TEACHER', 'SCHOOL_DIRECTOR', 'SCHOOL_ADMIN'],
     methods: ['POST'],
   },
   {

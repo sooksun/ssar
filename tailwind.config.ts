@@ -7,6 +7,20 @@ const config: Config = {
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  safelist: [
+    // Dashboard gradient colors
+    'from-violet-50',
+    'from-sky-50',
+    'from-purple-50',
+    'via-white',
+    'to-white',
+    'border-violet-200',
+    'border-sky-200',
+    'border-purple-200',
+    'text-violet-700',
+    'text-sky-700',
+    'text-purple-700',
+  ],
   theme: {
     extend: {
       colors: {

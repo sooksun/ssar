@@ -22,12 +22,12 @@
 
 ### Evidence Center
 - `/evidence` - รายการหลักฐาน
-  - Filter: school, fiscal year, status, indicator
+  - Filter: school, academic year, status, indicator
   - Search: title, evidence_code
 - `/evidence/new` - เพิ่มหลักฐานใหม่
   - Dependent dropdown: level → standard → indicator
   - Auto-generate evidence_code
-  - Auto-set fiscal_year
+  - Auto-set academic year
 - `/evidence/[id]` - รายละเอียดหลักฐาน
   - แสดงข้อมูลหลักฐาน
   - แสดงไฟล์ที่แนบ
@@ -45,18 +45,18 @@
 - `/evaluation` - การประเมิน
   - Self evaluation
   - External evaluation
-  - Filter: school, fiscal year, standard, indicator
+  - Filter: school, academic year, standard, indicator
 
 ### Reports
 - `/reports/readiness` - รายงานความพร้อม
-  - Filter: school, fiscal year
+  - Filter: school, academic year
   - แสดง % ต่อมาตรฐาน
 - `/reports/missing` - รายการ Missing
   - รายการตัวชี้วัดที่ยังไม่มีหลักฐาน
-  - Filter: school, fiscal year
+  - Filter: school, academic year
 - `/reports/files` - รายการไฟล์หลัก
   - รายการหลักฐานพร้อมลิงก์เปิดไฟล์หลัก
-  - Filter: school, fiscal year
+  - Filter: school, academic year
 
 ### SAR
 - `/sar` - รายการ SAR Reports
@@ -78,12 +78,12 @@
 
 ### Evidence
 - `POST /api/evidence` - สร้างหลักฐานใหม่
-  - Body: `{ schoolId, indicatorId, fiscalYear, title, description, ownerUserId, privacyLevel }`
+  - Body: `{ schoolId, indicatorId, academicYear, title, description, ownerUserId, privacyLevel }`
   - Response: `{ id, evidenceCode, ... }`
   - Auto-generate evidence_code
 
 - `GET /api/evidence` - รายการหลักฐาน
-  - Query: `schoolId`, `fiscalYear`, `indicatorId`, `status`, `page`, `limit`
+  - Query: `schoolId`, `academicYear`, `indicatorId`, `status`, `page`, `limit`
   - Response: `{ data: Evidence[], total, page, limit }`
 
 - `GET /api/evidence/[id]` - รายละเอียดหลักฐาน
@@ -137,22 +137,22 @@
 
 ### Reports
 - `GET /api/reports/readiness` - รายงานความพร้อม
-  - Query: `schoolId`, `fiscalYear`
+  - Query: `schoolId`, `academicYear`
   - Response: `{ standardId, standardName, total, ready, approved, percentage }[]`
 
 - `GET /api/reports/missing` - รายการ Missing
-  - Query: `schoolId`, `fiscalYear`
+  - Query: `schoolId`, `academicYear`
   - Response: `{ indicatorId, indicatorCode, indicatorName, standardName }[]`
 
 - `GET /api/reports/files` - รายการไฟล์หลัก
-  - Query: `schoolId`, `fiscalYear`
+  - Query: `schoolId`, `academicYear`
   - Response: `{ evidenceId, evidenceCode, title, primaryFile: { storageType, url } }[]`
 
 ### Evaluation
 - `GET /api/evaluation` - รายการการประเมิน
-  - Query: `schoolId`, `fiscalYear`, `standardId`, `indicatorId`, `evalType`
+  - Query: `schoolId`, `academicYear`, `standardId`, `indicatorId`, `evalType`
 - `POST /api/evaluation` - สร้างการประเมิน
-  - Body: `{ schoolId, fiscalYear, standardId, indicatorId?, evalType, score?, comment? }`
+  - Body: `{ schoolId, academicYear, standardId, indicatorId?, evalType, score?, comment? }`
 
 ### Admin
 - `GET /api/admin/users` - รายการผู้ใช้

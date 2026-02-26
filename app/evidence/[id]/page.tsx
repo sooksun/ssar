@@ -8,6 +8,7 @@ import { getEvidenceStatusBadgeClass, getEvidenceStatusLabel, getReviewStatusBad
 import { BackLink } from '@/components/ui/back-link';
 import { isImageFile, isVideoFile } from '@/lib/file-types';
 import ExternalEvaluationsPanel from './external/ui-external-evaluations';
+import AIAnalyzePanel from './ai-analyze-panel';
 
 export default async function EvidenceDetailPage({
   params,
@@ -159,9 +160,12 @@ export default async function EvidenceDetailPage({
         </div>
       </div>
 
-      {/* Overview Tab */}
+      {/* Overview Tab — PQA: หลักฐานชิ้นนี้ใช้รองรับได้ทั้ง QA (ตัวชี้วัด) และ PA (ข้อตกลง) */}
       <div className="rounded-lg border bg-card p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">ข้อมูลหลักฐาน</h2>
+        <h2 className="text-xl font-semibold mb-1">ข้อมูลหลักฐาน</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          หลักฐานชิ้นนี้ใช้รองรับได้ทั้งการประเมินคุณภาพ (QA) และการประเมินผลการปฏิบัติงาน (PA)
+        </p>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <p className="text-sm text-muted-foreground">โรงเรียน</p>
@@ -187,7 +191,7 @@ export default async function EvidenceDetailPage({
             </p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">ปีงบประมาณ</p>
+            <p className="text-sm text-muted-foreground">ปีการศึกษา</p>
             <p className="font-medium">{evidence.fiscalYear}</p>
           </div>
           <div>
@@ -380,6 +384,17 @@ export default async function EvidenceDetailPage({
           </div>
         )}
       </div>
+
+      {/* AI Analysis Section */}
+      <AIAnalyzePanel
+        evidenceId={id}
+        existingSummary={evidence.aiSummary}
+        existingKeywords={evidence.aiKeywords as string[] | null}
+        existingQualityCheck={
+          typeof evidence.aiQualityCheck === 'string' ? evidence.aiQualityCheck : undefined
+        }
+        existingSuggestions={evidence.aiSuggestions}
+      />
 
       {/* Reviews Section */}
       <div className="rounded-lg border bg-card p-6 mb-6">

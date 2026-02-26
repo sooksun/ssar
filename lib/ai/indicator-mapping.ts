@@ -1,0 +1,130 @@
+/**
+ * Cross-mapping table: QA indicators <-> PA Teacher <-> PA Principal
+ *
+ * ใช้เป็น context ส่งให้ AI prompt เพื่อให้วิเคราะห์ได้แม่นยำขึ้น
+ * และช่วยให้ระบบแนะนำตัวชี้วัดข้ามมุมมอง QA/PA ได้
+ */
+
+// ---------------------------------------------------------------------------
+// QA Indicators (ขั้นพื้นฐาน - BASIC)
+// ---------------------------------------------------------------------------
+export const QA_BASIC_INDICATORS = [
+  { code: '1.1', nameTh: 'ผู้เรียนมีสมรรถนะตามหลักสูตรสถานศึกษา' },
+  { code: '1.2', nameTh: 'ผู้เรียนมีคุณลักษณะที่พึงประสงค์ตามหลักสูตรสถานศึกษา' },
+  { code: '1.3', nameTh: 'ผู้เรียนสามารถนำตนเองในการเรียนรู้' },
+  { code: '2.1', nameTh: 'วิสัยทัศน์ พันธกิจ และค่านิยมของสถานศึกษา' },
+  { code: '2.2', nameTh: 'นโยบาย ทิศทาง กลยุทธ์ และแผนงานสอดคล้องวิสัยทัศน์/พันธกิจ' },
+  { code: '2.3', nameTh: 'ผู้บริหารมีภาวะผู้นำทางวิชาการและบริหารจัดการด้วยหลักธรรมาภิบาล' },
+  { code: '2.4', nameTh: 'แผนงานและการพัฒนาครูและบุคลากรทางการศึกษา' },
+  { code: '2.5', nameTh: 'กระบวนการนิเทศการปฏิบัติงานของครูและบุคลากรทางการศึกษาอย่างเป็นระบบ' },
+  { code: '2.6', nameTh: 'การใช้สื่อ อุปกรณ์ และระบบเทคโนโลยีเพื่อสนับสนุนการจัดการศึกษา' },
+  { code: '2.7', nameTh: 'การจัดสภาพแวดล้อม อาคารสถานที่ ปลอดภัยและถูกสุขลักษณะ' },
+  { code: '2.8', nameTh: 'สวัสดิการ/สวัสดิภาพ แนวทางป้องกันโรค อุบัติภัย และภัยพิบัติ' },
+  { code: '2.9', nameTh: 'ระบบและกระบวนการช่วยเหลือผู้เรียน' },
+  { code: '2.10', nameTh: 'การเสริมสร้างเครือข่ายผู้ปกครอง องค์กร และชุมชนเพื่อสนับสนุนการจัดการเรียนรู้' },
+  { code: '3.1', nameTh: 'การออกแบบหลักสูตรและแผนการจัดการเรียนรู้ที่เสริมสมรรถนะ/คุณลักษณะ' },
+  { code: '3.2', nameTh: 'การจัดกิจกรรมการเรียนรู้ที่เสริมสมรรถนะ/คุณลักษณะ' },
+  { code: '3.3', nameTh: 'ครูวัดและประเมินผลการเรียนรู้อย่างเป็นระบบและต่อเนื่อง' },
+];
+
+// ---------------------------------------------------------------------------
+// PA Teacher Indicators (3 ด้าน 15 ตัว)
+// ---------------------------------------------------------------------------
+export const PA_TEACHER_INDICATORS = [
+  { aspectCode: 'T1', code: '1.1', nameTh: 'สร้างและหรือพัฒนาหลักสูตร' },
+  { aspectCode: 'T1', code: '1.2', nameTh: 'ออกแบบการจัดการเรียนรู้' },
+  { aspectCode: 'T1', code: '1.3', nameTh: 'จัดกิจกรรมการเรียนรู้' },
+  { aspectCode: 'T1', code: '1.4', nameTh: 'สร้างและหรือพัฒนาสื่อ นวัตกรรม เทคโนโลยี และแหล่งเรียนรู้' },
+  { aspectCode: 'T1', code: '1.5', nameTh: 'วัดและประเมินผลการเรียนรู้' },
+  { aspectCode: 'T1', code: '1.6', nameTh: 'ศึกษา วิเคราะห์ และสังเคราะห์ เพื่อแก้ไขปัญหาหรือพัฒนาการเรียนรู้' },
+  { aspectCode: 'T1', code: '1.7', nameTh: 'จัดบรรยากาศที่ส่งเสริมและพัฒนาผู้เรียน' },
+  { aspectCode: 'T1', code: '1.8', nameTh: 'อบรมและพัฒนาคุณลักษณะที่ดีของผู้เรียน' },
+  { aspectCode: 'T2', code: '2.1', nameTh: 'จัดทำข้อมูลสารสนเทศของผู้เรียนและรายวิชา' },
+  { aspectCode: 'T2', code: '2.2', nameTh: 'ดำเนินการตามระบบดูแลช่วยเหลือผู้เรียน' },
+  { aspectCode: 'T2', code: '2.3', nameTh: 'ปฏิบัติงานวิชาการ และงานอื่น ๆ ของสถานศึกษา' },
+  { aspectCode: 'T2', code: '2.4', nameTh: 'ประสานความร่วมมือกับผู้ปกครอง ภาคีเครือข่าย และหรือสถานประกอบการ' },
+  { aspectCode: 'T3', code: '3.1', nameTh: 'พัฒนาตนเองอย่างเป็นระบบและต่อเนื่อง' },
+  { aspectCode: 'T3', code: '3.2', nameTh: 'มีส่วนร่วมและเป็นผู้นำในการแลกเปลี่ยนเรียนรู้ทางวิชาชีพ' },
+  { aspectCode: 'T3', code: '3.3', nameTh: 'นำความรู้ ความสามารถ ทักษะที่ได้จากการพัฒนาตนเองและวิชาชีพมาใช้ในการพัฒนาการจัดการเรียนรู้' },
+];
+
+// ---------------------------------------------------------------------------
+// PA Principal Indicators (5 ด้าน 15 ตัว)
+// ---------------------------------------------------------------------------
+export const PA_PRINCIPAL_INDICATORS = [
+  { aspectCode: 'P1', code: '1.1', nameTh: 'การวางแผนพัฒนามาตรฐานการเรียนรู้ของผู้เรียน' },
+  { aspectCode: 'P1', code: '1.2', nameTh: 'การจัดทำและพัฒนาหลักสูตรสถานศึกษา' },
+  { aspectCode: 'P1', code: '1.3', nameTh: 'การพัฒนากระบวนการจัดการเรียนรู้ที่เน้นผู้เรียนเป็นสำคัญ' },
+  { aspectCode: 'P1', code: '1.4', nameTh: 'การส่งเสริม สนับสนุน การนำสื่อ นวัตกรรม และเทคโนโลยีทางการศึกษามาใช้' },
+  { aspectCode: 'P1', code: '1.5', nameTh: 'การนิเทศ กำกับ ติดตาม ประเมินผลการจัดการเรียนรู้ของครู' },
+  { aspectCode: 'P1', code: '1.6', nameTh: 'การศึกษา วิเคราะห์ เพื่อแก้ปัญหาและพัฒนาการจัดการเรียนรู้' },
+  { aspectCode: 'P2', code: '2.1', nameTh: 'การบริหารจัดการสถานศึกษาตามกฎหมาย ระเบียบ และหลักธรรมาภิบาล' },
+  { aspectCode: 'P2', code: '2.2', nameTh: 'การบริหารกิจการผู้เรียนและการส่งเสริมพัฒนาผู้เรียน' },
+  { aspectCode: 'P2', code: '2.3', nameTh: 'การจัดระบบดูแลช่วยเหลือผู้เรียน' },
+  { aspectCode: 'P3', code: '3.1', nameTh: 'การกำหนดนโยบาย กลยุทธ์ การใช้นวัตกรรมทางการบริหาร' },
+  { aspectCode: 'P3', code: '3.2', nameTh: 'การบริหารการเปลี่ยนแปลงและนวัตกรรมเพื่อพัฒนาสถานศึกษา' },
+  { aspectCode: 'P4', code: '4.1', nameTh: 'การสร้างและพัฒนาเครือข่ายเพื่อพัฒนาการเรียนรู้' },
+  { aspectCode: 'P4', code: '4.2', nameTh: 'การจัดระบบการให้บริการในสถานศึกษา' },
+  { aspectCode: 'P5', code: '5.1', nameTh: 'การพัฒนาตนเองและวิชาชีพ' },
+  { aspectCode: 'P5', code: '5.2', nameTh: 'การนำความรู้ ทักษะ มาใช้ในการพัฒนาการบริหารจัดการสถานศึกษา' },
+];
+
+// ---------------------------------------------------------------------------
+// Cross-mapping: QA <-> PA
+// ---------------------------------------------------------------------------
+export interface CrossMapping {
+  qaCode: string;
+  paTeacherCodes: string[];
+  paPrincipalCodes: string[];
+}
+
+export const CROSS_MAPPING: CrossMapping[] = [
+  // มาตรฐาน 1: ผลลัพธ์ของการเรียนรู้
+  { qaCode: '1.1', paTeacherCodes: ['T1.1.1', 'T1.1.2', 'T1.1.3'], paPrincipalCodes: ['P1.1.1', 'P1.1.3'] },
+  { qaCode: '1.2', paTeacherCodes: ['T1.1.8'], paPrincipalCodes: ['P2.2.2'] },
+  { qaCode: '1.3', paTeacherCodes: ['T1.1.3', 'T1.1.6'], paPrincipalCodes: ['P1.1.3', 'P1.1.6'] },
+
+  // มาตรฐาน 2: การพัฒนาคุณภาพการบริหารจัดการสถานศึกษา
+  { qaCode: '2.1', paTeacherCodes: [], paPrincipalCodes: ['P3.3.1'] },
+  { qaCode: '2.2', paTeacherCodes: [], paPrincipalCodes: ['P3.3.1', 'P3.3.2'] },
+  { qaCode: '2.3', paTeacherCodes: [], paPrincipalCodes: ['P2.2.1', 'P1.1.5'] },
+  { qaCode: '2.4', paTeacherCodes: ['T3.3.1', 'T3.3.2'], paPrincipalCodes: ['P5.5.1'] },
+  { qaCode: '2.5', paTeacherCodes: [], paPrincipalCodes: ['P1.1.5'] },
+  { qaCode: '2.6', paTeacherCodes: ['T1.1.4'], paPrincipalCodes: ['P1.1.4'] },
+  { qaCode: '2.7', paTeacherCodes: ['T1.1.7'], paPrincipalCodes: ['P2.2.1'] },
+  { qaCode: '2.8', paTeacherCodes: [], paPrincipalCodes: ['P2.2.1'] },
+  { qaCode: '2.9', paTeacherCodes: ['T2.2.2'], paPrincipalCodes: ['P2.2.3'] },
+  { qaCode: '2.10', paTeacherCodes: ['T2.2.4'], paPrincipalCodes: ['P4.4.1'] },
+
+  // มาตรฐาน 3: การพัฒนาคุณภาพการจัดการเรียนรู้
+  { qaCode: '3.1', paTeacherCodes: ['T1.1.1', 'T1.1.2'], paPrincipalCodes: ['P1.1.2', 'P1.1.3'] },
+  { qaCode: '3.2', paTeacherCodes: ['T1.1.3', 'T1.1.4'], paPrincipalCodes: ['P1.1.3', 'P1.1.4'] },
+  { qaCode: '3.3', paTeacherCodes: ['T1.1.5'], paPrincipalCodes: ['P1.1.5'] },
+];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** รวมรายการตัวชี้วัดทั้งหมดสำหรับส่งให้ AI prompt */
+export function getIndicatorCatalog() {
+  return {
+    qaBasic: QA_BASIC_INDICATORS,
+    paTeacher: PA_TEACHER_INDICATORS,
+    paPrincipal: PA_PRINCIPAL_INDICATORS,
+  };
+}
+
+/** หาตัวชี้วัด PA ที่สอดคล้องกับ QA code */
+export function findPAByQACode(qaCode: string) {
+  const mapping = CROSS_MAPPING.find((m) => m.qaCode === qaCode);
+  if (!mapping) return { teacher: [], principal: [] };
+  return { teacher: mapping.paTeacherCodes, principal: mapping.paPrincipalCodes };
+}
+
+/** หาตัวชี้วัด QA ที่สอดคล้องกับ PA code */
+export function findQAByPACode(paCode: string): string[] {
+  return CROSS_MAPPING.filter(
+    (m) => m.paTeacherCodes.includes(paCode) || m.paPrincipalCodes.includes(paCode),
+  ).map((m) => m.qaCode);
+}

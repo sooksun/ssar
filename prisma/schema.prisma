@@ -8,11 +8,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// สำนักงานเขตพื้นที่การศึกษา (สพป./สพม.) — รองรับหลายสังกัด และทุกโรงเรียนในสพฐ.
+model EducationServiceArea {
+  id        BigInt   @id @default(autoincrement())
+  code      String   @unique // รหัสเขต เช่น ภาค 1, กทม.1
+  nameTh    String   // ชื่อเขตพื้นที่
+  province  String?
+  sortNo    Int      @default(0)
+  del       Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  schools   School[]
+  userRoles UserAreaRole[]
+
+  @@map("educationservicearea")
+}
+
 model School {
   id                   BigInt                @id @default(autoincrement())
   sc_id                BigInt                @unique
   name                 String
-  area_name            String?
+  area                 EducationServiceArea? @relation(fields: [areaId], references: [id])
+  areaId               BigInt?               // สังกัดเขตพื้นที่ (รองรับหลายสังกัด/สพฐ.)
+  area_name            String?               // เก็บชื่อเดิมถ้าไม่มี areaId (backward compat)
   province             String?
   level_type           String?
   del                  Boolean               @default(false)
@@ -29,15 +47,25 @@ model School {
   externalEvaluations  ExternalEvaluation[]
   auditLogs            AuditLog[]
   selfAssessmentScopes SelfAssessmentScope[]
+  teachingMedia        TeachingMedia[]
+  teachingMediaFiles   TeachingMediaFile[]
+  lessonPlans          LessonPlan[]
+  lessonPlanFiles      LessonPlanFile[]
+  paAgreements         PAAgreement[]
+  paSummaries          PASummary[]
+  developmentSummaries DevelopmentSummary[]
 
+  @@index([areaId])
   @@map("school")
 }
 
+/// บทบาทผู้ใช้: ระดับโรงเรียน (TEACHER, SCHOOL_DIRECTOR, SCHOOL_ADMIN) ระดับเขต (AREA_HEAD_OFFICE, AREA_ADMIN) + ADMIN, QA_LEAD, ASSESSOR
 model Role {
-  id    BigInt           @id @default(autoincrement())
-  code  String           @unique // ADMIN, QA_LEAD, TEACHER, ASSESSOR
-  name  String
-  users UserSchoolRole[]
+  id           BigInt           @id @default(autoincrement())
+  code         String           @unique
+  name         String
+  users        UserSchoolRole[]
+  userAreaRoles UserAreaRole[]
 
   @@map("role")
 }
@@ -46,7 +74,7 @@ model User {
   id            BigInt           @id @default(autoincrement())
   fullName      String
   email         String           @unique
-  password      String? // สำหรับ Credentials provider (hash ด้วย bcrypt)
+  password      String?          // Credentials (bcrypt)
   phone         String?
   del           Boolean          @default(false)
   createdAt     DateTime         @default(now())
@@ -54,6 +82,7 @@ model User {
   primarySchool School?          @relation("PrimarySchool", fields: [schoolId], references: [sc_id])
   schoolId      BigInt?
   schoolRoles   UserSchoolRole[]
+  areaRoles     UserAreaRole[]
   evidenceOwned Evidence[]       @relation("Owner")
   evidenceFiles EvidenceFile[]   @relation("Uploader")
   reviews       EvidenceReview[] @relation("Reviewer")
@@ -62,6 +91,7 @@ model User {
   @@map("user")
 }
 
+/// บทบาทระดับโรงเรียน: Teacher บันทึกข้อมูลโดยตรง, School_director สร้างรายงานจากข้อมูลครู, School_admin จัดการโรงเรียน
 model UserSchoolRole {
   id        BigInt   @id @default(autoincrement())
   user      User     @relation(fields: [userId], references: [id])
@@ -76,6 +106,24 @@ model UserSchoolRole {
 
   @@index([userId, schoolId])
   @@map("userschoolrole")
+}
+
+/// บทบาทระดับเขตพื้นที่: Area_head_office / Area_admin เห็นทุกโรงเรียนในเขต (รองรับหลายสังกัด สพฐ.)
+model UserAreaRole {
+  id        BigInt                @id @default(autoincrement())
+  user      User                  @relation(fields: [userId], references: [id])
+  userId    BigInt
+  area      EducationServiceArea  @relation(fields: [areaId], references: [id])
+  areaId    BigInt
+  role      Role                  @relation(fields: [roleId], references: [id])
+  roleId    BigInt
+  isActive  Boolean               @default(true)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  @@unique([userId, areaId])
+  @@index([areaId])
+  @@map("userarearole")
 }
 
 model EduLevel {
@@ -117,6 +165,7 @@ model QAIndicator {
   evaluations              Evaluation[]
   selfAssessmentIndicators SelfAssessmentIndicator[]
   indicatorScales          IndicatorScale[]
+  teachingMedia            TeachingMedia[]
 
   @@unique([standardId, code])
   @@map("qaindicator")
@@ -139,7 +188,8 @@ model Evidence {
   schoolId            BigInt
   indicator           QAIndicator                  @relation(fields: [indicatorId], references: [id])
   indicatorId         BigInt
-  fiscalYear          Int
+  fiscalYear          Int // ปีงบประมาณ (ต.ค.→ก.ย.)
+  academicYear        Int // ปีการศึกษา (พ.ค.→เม.ย.)
   title               String
   description         String?
   status              EvidenceStatus               @default(PENDING)
@@ -156,8 +206,19 @@ model Evidence {
   reviews             EvidenceReview[]
   selfAssessmentLinks SelfAssessmentEvidenceLink[]
   externalEvaluations ExternalEvaluation[]
+  paMappings          PAEvidenceMapping[]
+  // PRD: indicatorCodes, evidenceType, AI, PDPA
+  indicatorCodes      Json?    // รหัสตัวชี้วัดเพิ่มเติม เช่น ["1.1","2.1"]
+  evidenceType        String?  // LESSON_PLAN, TEACHING_MEDIA, ASSESSMENT, STUDENT_WORK, CLASSROOM_PHOTO, REFLECTION, ACTION_RESEARCH, OTHER
+  aiSummary           String?  @db.Text // สรุปเนื้อหา (จาก AI) — เก็บข้อความยาวได้
+  aiKeywords          Json?    // คำสำคัญ (จาก AI)
+  aiQualityCheck      Json?    // ตรวจคุณภาพเบื้องต้น (จาก AI)
+  aiSuggestions       String?  @db.Text // ข้อเสนอแนะปรับปรุง (จาก AI)
+  pdpaChecked         Boolean? // ตรวจ PDPA (ถ้าเปิดใช้)
+  pdpaRiskLevel       String?  // ระดับความเสี่ยง PDPA
 
   @@index([schoolId, fiscalYear, indicatorId, status])
+  @@index([schoolId, academicYear, indicatorId, status])
   @@map("evidence")
 }
 
@@ -189,7 +250,7 @@ model EvidenceFile {
   driveFileId  String?
   externalUrl  String?
   thumbnailUrl String?
-  fileUrls     Json?               // สำหรับเก็บ array ของรูปภาพหลายไฟล์ (JSON array)
+  fileUrls     Json? // สำหรับเก็บ array ของรูปภาพหลายไฟล์ (JSON array)
   checksumSha1 String?
   versionNo    Int                 @default(1)
   uploader     User?               @relation("Uploader", fields: [uploadedBy], references: [id])
@@ -294,6 +355,45 @@ enum SarStatus {
   READY
   SUBMITTED
   APPROVED
+}
+
+/// PRD 2.5: สรุปผลพัฒนาอย่างเข้ม — รองรับหลายปีการศึกษา รายงานภาคเรียนละ 1 ครั้ง (assessmentRound 1=ภาค 1, 2=ภาค 2 ต่อปี)
+model DevelopmentSummary {
+  id                   BigInt   @id @default(autoincrement())
+  school               School   @relation(fields: [schoolId], references: [sc_id])
+  schoolId             BigInt
+  userId               BigInt   // ครู/ผู้รับการประเมิน
+  fiscalYear           Int      // ปีงบประมาณ (ใช้ต่อเนื่องหลายปี)
+  assessmentRound      Int      @default(1) // ภาคเรียน: 1 = ภาค 1, 2 = ภาค 2 (ต่อปี) — รายงานสรุปภาคเรียนละ 1 ครั้ง
+  overallScore         Decimal? @db.Decimal(5, 2)
+  overallPassed        Boolean?
+  professionalScore    Decimal? @db.Decimal(5, 2)
+  professionalPassed   Int?     // จำนวนข้อที่ผ่าน
+  professionalTotal    Int?
+  socialScore          Decimal? @db.Decimal(5, 2)
+  socialPassed         Int?
+  socialTotal          Int?
+  personalScore        Decimal? @db.Decimal(5, 2)
+  personalPassed       Int?
+  personalTotal        Int?
+  totalEvidence        Int      @default(0)
+  totalFiles           Int      @default(0)
+  totalVideoLinks      Int      @default(0)
+  totalAnalysisJobs    Int      @default(0)
+  evidenceByIndicator Json?    // { "indicatorCode": count หรือรายการ }
+  aiInsights           Json?    // teachingStrengths, areasForImprovement, recommendations
+  domainSummaries      Json?
+  indicatorNarratives  Json?    // { "PRO_1.1": "ข้อความบรรยาย...", ... }
+  summaryNarrative     String?  @db.Text
+  passCriteria         Json?    // snapshot เกณฑ์ผ่านที่ใช้
+  deckPath             String?
+  deckMarkdown         String?  @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([schoolId, userId, fiscalYear, assessmentRound], name: "devsum_school_user_year_round")
+  @@index([schoolId, fiscalYear])
+  @@map("developmentsummary")
 }
 
 model ExternalAssessment {
@@ -448,4 +548,390 @@ model IndicatorScale {
   @@unique([indicatorId, score], name: "uq_indicator_score")
   @@index([levelId])
   @@map("indicatorscale")
+}
+
+/// ระบบบันทึกสื่อการสอน (สำหรับข้อ 2.6 - การใช้สื่อ อุปกรณ์ และระบบเทคโนโลยี)
+model TeachingMedia {
+  id           BigInt              @id @default(autoincrement())
+  school       School              @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  indicator    QAIndicator         @relation(fields: [indicatorId], references: [id])
+  indicatorId  BigInt // ควรเป็น 2.6 สำหรับระดับพื้นฐาน
+  academicYear Int // ปีการศึกษา (พ.ค.→เม.ย.)
+  fiscalYear   Int // ปีงบประมาณ (ต.ค.→ก.ย.)
+  title        String // ชื่อสื่อ
+  description  String? // รายละเอียดสื่อ
+  teacherName  String // ชื่อครูผู้ผลิตสื่อ
+  teacherId    BigInt? // ID ของครู (ถ้ามีในระบบ)
+  status       TeachingMediaStatus @default(DRAFT)
+  del          Boolean             @default(false)
+  createdBy    BigInt?
+  updatedBy    BigInt?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  files TeachingMediaFile[]
+
+  @@index([schoolId, academicYear, indicatorId])
+  @@index([schoolId, fiscalYear, indicatorId])
+  @@index([schoolId, academicYear])
+  @@index([schoolId, fiscalYear])
+  @@map("teachingmedia")
+}
+
+enum TeachingMediaStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+/// ไฟล์ที่เกี่ยวข้องกับสื่อการสอน (ภาพ/วิดีโอการนำสื่อไปใช้)
+model TeachingMediaFile {
+  id              BigInt              @id @default(autoincrement())
+  teachingMedia   TeachingMedia       @relation(fields: [teachingMediaId], references: [id])
+  teachingMediaId BigInt
+  school          School              @relation(fields: [schoolId], references: [sc_id])
+  schoolId        BigInt
+  fileName        String
+  mimeType        String?
+  fileSize        Int?
+  storageType     EvidenceStorageType @default(URL)
+  storagePath     String?
+  driveFileId     String?
+  externalUrl     String?
+  thumbnailUrl    String?
+  fileUrls        Json? // สำหรับเก็บ array ของรูปภาพหลายไฟล์
+  description     String? // คำอธิบายไฟล์ (เช่น "ภาพการนำสื่อไปใช้ในชั้นเรียน")
+  uploadedBy      BigInt?
+  uploadedAt      DateTime            @default(now())
+  isPrimary       Boolean             @default(false)
+  del             Boolean             @default(false)
+
+  @@index([teachingMediaId])
+  @@index([teachingMediaId, isPrimary])
+  @@index([schoolId])
+  @@map("teachingmediafile")
+}
+
+/// ระบบบันทึกแผนการสอนและบันทึกหลังแผน
+model LessonPlan {
+  id           BigInt           @id @default(autoincrement())
+  school       School           @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  academicYear Int // ปีการศึกษา (พ.ค.→เม.ย.)
+  fiscalYear   Int // ปีงบประมาณ (ต.ค.→ก.ย.)
+  title        String // ชื่อแผน
+  description  String? // รายละเอียดแผน
+  teacherName  String // ชื่อครูผู้เขียนแผน
+  teacherId    BigInt? // ID ของครู (ถ้ามีในระบบ)
+  subject      String? // วิชา
+  grade        String? // ระดับชั้น
+  planDate     DateTime? // วันที่ใช้แผน
+  submittedAt  DateTime? // วันที่ส่งแผน
+  reflection   String? // บันทึกหลังแผน (reflection)
+  status       LessonPlanStatus @default(DRAFT)
+  del          Boolean          @default(false)
+  createdBy    BigInt?
+  updatedBy    BigInt?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  files LessonPlanFile[]
+
+  @@index([schoolId, academicYear])
+  @@index([schoolId, fiscalYear])
+  @@index([schoolId, academicYear, status])
+  @@index([schoolId, fiscalYear, status])
+  @@map("lessonplan")
+}
+
+enum LessonPlanStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+  APPROVED
+  REJECTED
+}
+
+/// ไฟล์ที่เกี่ยวข้องกับแผนการสอน (ไฟล์แผนการสอน, เอกสารประกอบ)
+model LessonPlanFile {
+  id           BigInt              @id @default(autoincrement())
+  lessonPlan   LessonPlan          @relation(fields: [lessonPlanId], references: [id])
+  lessonPlanId BigInt
+  school       School              @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  fileName     String
+  mimeType     String?
+  fileSize     Int?
+  storageType  EvidenceStorageType @default(URL)
+  storagePath  String?
+  driveFileId  String?
+  externalUrl  String?
+  thumbnailUrl String?
+  fileUrls     Json? // สำหรับเก็บ array ของรูปภาพหลายไฟล์ (JSON array)
+  fileType      LessonPlanFileType  @default(PLAN) // แผนการสอน หรือ บันทึกหลังแผน
+  description   String? // คำอธิบายไฟล์
+  uploadedBy    BigInt?
+  uploadedAt    DateTime            @default(now())
+  isPrimary     Boolean             @default(false)
+  del           Boolean             @default(false)
+
+  @@index([lessonPlanId])
+  @@index([lessonPlanId, isPrimary])
+  @@index([schoolId])
+  @@map("lessonplanfile")
+}
+
+enum LessonPlanFileType {
+  PLAN // ไฟล์แผนการสอน
+  REFLECTION // ไฟล์บันทึกหลังแผน
+  OTHER // ไฟล์อื่นๆ
+}
+
+// =============================================================================
+// PA (Performance Agreement) Models - NEW
+// =============================================================================
+
+model PAAspect {
+  id           BigInt         @id @default(autoincrement())
+  code         String         @unique
+  nameTh       String
+  sortNo       Int
+  description  String?
+  maxScore     Int            @default(60)
+  part         PAPart         @default(PART1)
+  positionType PAPositionType @default(PRINCIPAL)
+
+  indicators PAIndicator[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([positionType])
+  @@map("paaspect")
+}
+
+enum PAPart {
+  PART1
+  PART2
+}
+
+enum PAPositionType {
+  TEACHER
+  PRINCIPAL
+}
+
+model PAIndicator {
+  id          BigInt    @id @default(autoincrement())
+  aspect      PAAspect  @relation(fields: [aspectId], references: [id])
+  aspectId    BigInt
+  code        String
+  nameTh      String
+  description String?
+  sortNo      Int
+  weight      Decimal?  @db.Decimal(5, 2)
+
+  evidenceMappings PAEvidenceMapping[]
+  agreementItems   PAAgreementItem[]
+  scales           PAIndicatorScale[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([aspectId, code])
+  @@index([aspectId])
+  @@map("paindicator")
+}
+
+model PAIndicatorScale {
+  id            BigInt      @id @default(autoincrement())
+  indicator     PAIndicator @relation(fields: [indicatorId], references: [id])
+  indicatorId   BigInt
+  score         Int         @db.TinyInt
+  labelTh       String
+  descriptionTh String?
+  criteriaTh    String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([indicatorId, score])
+  @@map("paindicatorscale")
+}
+
+model PAConsideration {
+  id          BigInt    @id @default(autoincrement())
+  code        String    @unique
+  nameTh      String
+  description String?
+  maxScore    Int
+  sortNo      Int
+
+  challengeConsiderations PAChallengeConsideration[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("paconsideration")
+}
+
+model PAAgreement {
+  id           BigInt         @id @default(autoincrement())
+  school       School         @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  userId       BigInt
+  evaluatorId  BigInt?
+  positionType PAPositionType @default(PRINCIPAL)
+
+  fiscalYear   Int
+  startDate    DateTime
+  endDate      DateTime
+  status       PAStatus @default(DRAFT)
+  totalScore   Decimal? @db.Decimal(5, 2)
+  part1Score   Decimal? @db.Decimal(5, 2)
+  part2Score   Decimal? @db.Decimal(5, 2)
+  isPassed     Boolean?
+  passReason   String?
+  note         String?
+
+  items     PAAgreementItem[]
+  challenge PAChallengeItem?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy BigInt?
+  updatedBy BigInt?
+
+  @@unique([userId, fiscalYear, positionType])
+  @@index([schoolId, fiscalYear])
+  @@index([status])
+  @@index([positionType])
+  @@map("paagreement")
+}
+
+enum PAStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  EVALUATED
+  APPROVED
+  REJECTED
+}
+
+model PAAgreementItem {
+  id            BigInt      @id @default(autoincrement())
+  agreement     PAAgreement @relation(fields: [agreementId], references: [id])
+  agreementId   BigInt
+  indicator     PAIndicator @relation(fields: [indicatorId], references: [id])
+  indicatorId   BigInt
+  score         Int?        @db.TinyInt
+  scoreValue    Decimal?    @db.Decimal(5, 2)
+  comment       String?
+  evaluatorNote String?
+
+  evidenceLinks PAEvidenceMapping[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agreementId, indicatorId])
+  @@index([agreementId])
+  @@index([indicatorId])
+  @@map("paagreementitem")
+}
+
+model PAChallengeItem {
+  id                BigInt    @id @default(autoincrement())
+  agreement         PAAgreement @relation(fields: [agreementId], references: [id])
+  agreementId       BigInt @unique
+  title             String
+  description       String?
+  objectives        String?
+
+  c1MethodScore   Int? @db.TinyInt
+  c1MethodComment String?
+  c21QuantScore   Int? @db.TinyInt
+  c21QuantComment String?
+  c22QualScore    Int? @db.TinyInt
+  c22QualComment  String?
+  part2Total      Decimal? @db.Decimal(5, 2)
+
+  considerations PAChallengeConsideration[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pachallengeitem")
+}
+
+model PAChallengeConsideration {
+  id              BigInt              @id @default(autoincrement())
+  challenge       PAChallengeItem     @relation(fields: [challengeId], references: [id])
+  challengeId     BigInt
+  consideration   PAConsideration     @relation(fields: [considerationId], references: [id])
+  considerationId BigInt
+  score           Int?                @db.TinyInt
+  scoreValue      Decimal?            @db.Decimal(5, 2)
+  comment         String?
+
+  evidenceLinks PAEvidenceMapping[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([challengeId, considerationId])
+  @@map("pachallengeconsideration")
+}
+
+model PAEvidenceMapping {
+  id                     BigInt                    @id @default(autoincrement())
+  evidence               Evidence                  @relation(fields: [evidenceId], references: [id])
+  evidenceId             BigInt
+  agreementItem          PAAgreementItem?            @relation(fields: [agreementItemId], references: [id])
+  agreementItemId        BigInt?
+  challengeConsideration PAChallengeConsideration? @relation(fields: [challengeConsiderationId], references: [id])
+  challengeConsiderationId BigInt?
+  indicator              PAIndicator?              @relation(fields: [indicatorId], references: [id])
+  indicatorId            BigInt?
+  note                   String?
+  relevanceLevel         Int?                      @db.TinyInt
+  createdAt              DateTime                  @default(now())
+  createdBy              BigInt?
+
+  @@index([evidenceId])
+  @@index([agreementItemId])
+  @@index([challengeConsiderationId])
+  @@index([indicatorId])
+  @@map("paevidencemapping")
+}
+
+model PASummary {
+  id                 BigInt    @id @default(autoincrement())
+  school             School    @relation(fields: [schoolId], references: [sc_id])
+  schoolId           BigInt
+  userId             BigInt
+  fiscalYear         Int
+  p1AcademicScore    Decimal?  @db.Decimal(5, 2)
+  p2ManagementScore  Decimal?  @db.Decimal(5, 2)
+  p3InnovationScore  Decimal?  @db.Decimal(5, 2)
+  p4NetworkScore     Decimal?  @db.Decimal(5, 2)
+  p5DevelopmentScore Decimal?  @db.Decimal(5, 2)
+  part1Total         Decimal?  @db.Decimal(5, 2)
+  c1MethodScore      Decimal?  @db.Decimal(5, 2)
+  c2QuantScore       Decimal?  @db.Decimal(5, 2)
+  c2QualScore        Decimal?  @db.Decimal(5, 2)
+  part2Total         Decimal?  @db.Decimal(5, 2)
+  grandTotal         Decimal?  @db.Decimal(5, 2)
+  isPassed           Boolean?
+  evaluationLevel    String?
+  totalEvidenceCount Int       @default(0)
+  qaLinkedCount      Int       @default(0)
+  paLinkedCount      Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, fiscalYear])
+  @@index([schoolId, fiscalYear])
+  @@map("pasummary")
 }

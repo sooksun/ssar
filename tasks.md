@@ -15,7 +15,7 @@
 #### 1.1 Prisma Migrations
 - สร้าง initial migration จาก `schema.prisma`
 - ตรวจสอบ indexes:
-  - `Evidence(schoolId, fiscalYear, indicatorId, status)`
+  - `Evidence(schoolId, academicYear, indicatorId, status)`
   - `EvidenceFile(evidenceId, isPrimary)`
   - `QAIndicator(standardId, code)` (unique constraint)
   - `UserSchoolRole(userId, schoolId)`
@@ -54,7 +54,7 @@
 - ... (ตามความเหมาะสม)
 
 **Demo Data**:
-- 1 demo school: "โรงเรียนตัวอย่าง"
+- 1 demo school: "โรงเรียนบ้านพญาไพร"
 - 1 admin user: email="admin@example.com", password="admin123" (hash ด้วย bcrypt)
 
 ### Implementation Notes
@@ -85,17 +85,17 @@
 
 #### 2.1 Helper Functions (`lib/evidence.ts`)
 
-**`thaiFiscalYear(d?: Date): number`**
-- คำนวณปีงบประมาณไทย
-- Logic: ต.ค.–ธ.ค. = ปีค.ศ. + 544, ม.ค.–ก.ย. = ปีค.ศ. + 543
+**`thaiAcademicYear(d?: Date): number`**
+- คำนวณปีการศึกษาไทย
+- Logic: พ.ค.–ธ.ค. = ปีค.ศ. + 543, ม.ค.–เม.ย. = ปีค.ศ. + 542
 - Default parameter: `new Date()`
 
-**`nextEvidenceCode(indicatorId: bigint, fiscalYear: number): Promise<string>`**
+**`nextEvidenceCode(indicatorId: bigint, academicYear: number): Promise<string>`**
 - สร้างรหัสหลักฐานอัตโนมัติ
 - Format: `${indicator.code}-${running2digits}`
 - Logic:
   1. Query indicator เพื่อดึง `code`
-  2. Count existing evidence สำหรับ indicator + fiscalYear (exclude deleted)
+  2. Count existing evidence สำหรับ indicator + academicYear (exclude deleted)
   3. Next number = count + 1
   4. Format: `String(nextNumber).padStart(2, '0')`
   5. Return: `${indicator.code}-${runningCode}`
@@ -196,7 +196,7 @@
 
 **Prisma Query** (`lib/queries/readiness.ts`):
 ```typescript
-async function getReadinessReport(schoolId: bigint, fiscalYear: number) {
+async function getReadinessReport(schoolId: bigint, academicYear: number) {
   // Query evidence ตาม school + fiscal year
   // Group by standard
   // Calculate: total indicators, ready/approved count, percentage
@@ -204,7 +204,7 @@ async function getReadinessReport(schoolId: bigint, fiscalYear: number) {
 }
 ```
 
-**API Route**: `GET /api/reports/readiness?schoolId&fiscalYear`
+**API Route**: `GET /api/reports/readiness?schoolId&academicYear`
 
 **UI Component**:
 - Bar chart (recharts)
@@ -222,7 +222,7 @@ async function getMissingIndicators(schoolId: bigint, fiscalYear: number) {
 }
 ```
 
-**API Route**: `GET /api/reports/missing?schoolId&fiscalYear`
+**API Route**: `GET /api/reports/missing?schoolId&academicYear`
 
 **UI Component**:
 - Table with "Add Evidence" action
@@ -238,7 +238,7 @@ async function getPrimaryFiles(schoolId: bigint, fiscalYear: number) {
 }
 ```
 
-**API Route**: `GET /api/reports/files?schoolId&fiscalYear`
+**API Route**: `GET /api/reports/files?schoolId&academicYear`
 
 **UI Component**:
 - Table with "Open" links

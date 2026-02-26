@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { thaiFiscalYear } from '../evidence';
+import { describe, it, expect, beforeEach, vi, beforeAll } from 'vitest';
+import { thaiAcademicYear } from '../evidence';
 
-// Mock Prisma Client สำหรับ nextEvidenceCode
-const mockFindUnique = vi.fn();
-const mockCount = vi.fn();
+// Mock Prisma Client สำหรับ nextEvidenceCode — ใช้ vi.hoisted เพื่อให้มีค่าก่อน vi.mock ทำงาน
+const { mockFindUnique, mockCount } = vi.hoisted(() => ({
+  mockFindUnique: vi.fn(),
+  mockCount: vi.fn(),
+}));
 
 vi.mock('@prisma/client', () => {
   return {
@@ -29,56 +31,56 @@ beforeAll(async () => {
   nextEvidenceCode = evidenceModule.nextEvidenceCode;
 });
 
-describe('thaiFiscalYear', () => {
-  it('ควรคำนวณปีงบประมาณถูกต้องสำหรับเดือนตุลาคม (ต.ค.)', () => {
-    // 15 ต.ค. 2567 → ปีงบประมาณ 2568
-    const date = new Date(2024, 9, 15); // เดือน 9 = ต.ค.
-    const result = thaiFiscalYear(date);
-    expect(result).toBe(2568); // 2024 + 544
+describe('thaiAcademicYear', () => {
+  it('ควรคำนวณปีการศึกษาถูกต้องสำหรับเดือนพฤษภาคม (พ.ค.)', () => {
+    // 15 พ.ค. 2567 → ปีการศึกษา 2567
+    const date = new Date(2024, 4, 15); // เดือน 4 = พ.ค.
+    const result = thaiAcademicYear(date);
+    expect(result).toBe(2567); // 2024 + 543
   });
 
-  it('ควรคำนวณปีงบประมาณถูกต้องสำหรับเดือนธันวาคม (ธ.ค.)', () => {
-    // 31 ธ.ค. 2567 → ปีงบประมาณ 2568
+  it('ควรคำนวณปีการศึกษาถูกต้องสำหรับเดือนธันวาคม (ธ.ค.)', () => {
+    // 31 ธ.ค. 2567 → ปีการศึกษา 2567
     const date = new Date(2024, 11, 31); // เดือน 11 = ธ.ค.
-    const result = thaiFiscalYear(date);
-    expect(result).toBe(2568); // 2024 + 544
+    const result = thaiAcademicYear(date);
+    expect(result).toBe(2567); // 2024 + 543
   });
 
-  it('ควรคำนวณปีงบประมาณถูกต้องสำหรับเดือนมกราคม (ม.ค.)', () => {
-    // 15 ม.ค. 2568 → ปีงบประมาณ 2568
+  it('ควรคำนวณปีการศึกษาถูกต้องสำหรับเดือนมกราคม (ม.ค.)', () => {
+    // 15 ม.ค. 2568 → ปีการศึกษา 2567
     const date = new Date(2025, 0, 15); // เดือน 0 = ม.ค.
-    const result = thaiFiscalYear(date);
-    expect(result).toBe(2568); // 2025 + 543
+    const result = thaiAcademicYear(date);
+    expect(result).toBe(2567); // 2025 + 542
   });
 
-  it('ควรคำนวณปีงบประมาณถูกต้องสำหรับเดือนกันยายน (ก.ย.)', () => {
-    // 30 ก.ย. 2568 → ปีงบประมาณ 2568
-    const date = new Date(2025, 8, 30); // เดือน 8 = ก.ย.
-    const result = thaiFiscalYear(date);
-    expect(result).toBe(2568); // 2025 + 543
+  it('ควรคำนวณปีการศึกษาถูกต้องสำหรับเดือนเมษายน (เม.ย.)', () => {
+    // 30 เม.ย. 2568 → ปีการศึกษา 2567
+    const date = new Date(2025, 3, 30); // เดือน 3 = เม.ย.
+    const result = thaiAcademicYear(date);
+    expect(result).toBe(2567); // 2025 + 542
   });
 
   it('ควรใช้วันที่ปัจจุบันเป็น default parameter', () => {
-    const result = thaiFiscalYear();
+    const result = thaiAcademicYear();
     const now = new Date();
-    const expected = now.getMonth() + 1 >= 10
-      ? now.getFullYear() + 544
-      : now.getFullYear() + 543;
+    const expected = now.getMonth() + 1 >= 5
+      ? now.getFullYear() + 543
+      : now.getFullYear() + 542;
     expect(result).toBe(expected);
   });
 
-  it('ควรคำนวณปีงบประมาณถูกต้องสำหรับเดือนพฤศจิกายน (พ.ย.)', () => {
-    // 15 พ.ย. 2567 → ปีงบประมาณ 2568
+  it('ควรคำนวณปีการศึกษาถูกต้องสำหรับเดือนพฤศจิกายน (พ.ย.)', () => {
+    // 15 พ.ย. 2567 → ปีการศึกษา 2567
     const date = new Date(2024, 10, 15); // เดือน 10 = พ.ย.
-    const result = thaiFiscalYear(date);
-    expect(result).toBe(2568); // 2024 + 544
+    const result = thaiAcademicYear(date);
+    expect(result).toBe(2567); // 2024 + 543
   });
 
-  it('ควรคำนวณปีงบประมาณถูกต้องสำหรับเดือนกุมภาพันธ์ (ก.พ.)', () => {
-    // 15 ก.พ. 2568 → ปีงบประมาณ 2568
-    const date = new Date(2025, 1, 15); // เดือน 1 = ก.พ.
-    const result = thaiFiscalYear(date);
-    expect(result).toBe(2568); // 2025 + 543
+  it('ควรคำนวณปีการศึกษาถูกต้องสำหรับเดือนกุมภาพันธ์ (ก.พ.)', () => {
+    // 10 ก.พ. 2568 → ปีการศึกษา 2567
+    const date = new Date(2025, 1, 10); // เดือน 1 = ก.พ.
+    const result = thaiAcademicYear(date);
+    expect(result).toBe(2567); // 2025 + 542
   });
 });
 
@@ -161,7 +163,7 @@ describe('nextEvidenceCode', () => {
     );
   });
 
-  it('ควรใช้ปีงบประมาณที่ถูกต้องในการนับหลักฐาน', async () => {
+  it('ควรใช้ปีการศึกษาที่ถูกต้องในการนับหลักฐาน', async () => {
     const indicatorId = BigInt(1);
     const fiscalYear = 2567;
 

@@ -4,6 +4,7 @@ export const createEvidenceSchema = z.object({
   schoolId: z.string().transform((val) => BigInt(val)),
   indicatorId: z.string().transform((val) => BigInt(val)),
   fiscalYear: z.number().int().positive(),
+  academicYear: z.number().int().positive(),
   title: z.string().min(1, 'กรุณาระบุชื่อหลักฐาน').max(255),
   description: z.string().optional(),
   ownerUserId: z.string().transform((val) => BigInt(val)).optional(),

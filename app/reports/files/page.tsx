@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth/nextauth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { getPrimaryFiles } from '@/lib/queries/files';
-import { thaiFiscalYear } from '@/lib/evidence';
+import { thaiAcademicYear } from '@/lib/evidence';
 
 type SearchParams = {
   schoolId?: string;
@@ -66,11 +66,11 @@ export default async function PrimaryFilesReportPage({
     },
   });
 
-  const fiscalYearNow = thaiFiscalYear();
-  const selectedFiscalYear =
+  const academicYearNow = thaiAcademicYear();
+  const selectedAcademicYear =
     params?.fiscalYear && !Number.isNaN(Number(params.fiscalYear))
       ? Number(params.fiscalYear)
-      : fiscalYearNow;
+      : academicYearNow;
 
   const selectedSchoolId =
     params?.schoolId && accessibleSchoolIds.includes(params.schoolId)
@@ -84,7 +84,7 @@ export default async function PrimaryFilesReportPage({
 
   const rows = await getPrimaryFiles({
     schoolIds: querySchools,
-    fiscalYear: selectedFiscalYear,
+    fiscalYear: selectedAcademicYear,
   });
 
   const totalFiles = rows.length;
@@ -95,7 +95,7 @@ export default async function PrimaryFilesReportPage({
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">รายงานไฟล์หลัก</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            รวบรวมไฟล์หลัก (Primary) ของหลักฐานในปีงบประมาณ {selectedFiscalYear}
+            รวบรวมไฟล์หลัก (Primary) ของหลักฐานในปีการศึกษา {selectedAcademicYear}
           </p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-right shadow-sm">
@@ -125,7 +125,7 @@ export default async function PrimaryFilesReportPage({
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-slate-600" htmlFor="files-fiscal-year">
-            ปีงบประมาณ
+            ปีการศึกษา
           </label>
           <input
             id="files-fiscal-year"
@@ -133,7 +133,7 @@ export default async function PrimaryFilesReportPage({
             type="number"
             min={2500}
             max={3000}
-            defaultValue={selectedFiscalYear}
+            defaultValue={selectedAcademicYear}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </div>
@@ -153,7 +153,7 @@ export default async function PrimaryFilesReportPage({
           <a
             href={`/api/reports/files?${new URLSearchParams({
               ...(selectedSchoolId === 'ALL' ? {} : { schoolId: selectedSchoolId }),
-              fiscalYear: selectedFiscalYear.toString(),
+              fiscalYear: selectedAcademicYear.toString(),
             }).toString()}`}
             className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
           >

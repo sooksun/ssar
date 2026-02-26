@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth/nextauth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
-import { thaiFiscalYear } from '@/lib/evidence';
+import { thaiAcademicYear } from '@/lib/evidence';
 import Link from 'next/link';
 import { BackLink } from '@/components/ui/back-link';
 
@@ -22,8 +22,8 @@ export default async function ReadinessReportPage({
   // ดึง school IDs ที่ user มีสิทธิ์
   const schoolIds = roles.map((role) => BigInt(role.schoolId));
 
-  // ใช้ปีงบประมาณปัจจุบัน
-  const currentFiscalYear = thaiFiscalYear();
+  // ใช้ปีการศึกษาปัจจุบัน
+  const currentAcademicYear = thaiAcademicYear();
 
   // ดึงมาตรฐานทั้งหมด (สำหรับทุก level)
   const standards = await prisma.qAStandard.findMany({
@@ -36,7 +36,7 @@ export default async function ReadinessReportPage({
               schoolId: {
                 in: schoolIds,
               },
-              fiscalYear: currentFiscalYear,
+              fiscalYear: currentAcademicYear,
               del: false,
             },
           },
@@ -157,8 +157,8 @@ export default async function ReadinessReportPage({
             </p>
           </div>
           <div className="text-right">
-            <p className="text-sm text-muted-foreground">ปีงบประมาณ</p>
-            <p className="text-xl font-semibold">{currentFiscalYear}</p>
+            <p className="text-sm text-muted-foreground">ปีการศึกษา</p>
+            <p className="text-xl font-semibold">{currentAcademicYear}</p>
           </div>
         </div>
       </div>
