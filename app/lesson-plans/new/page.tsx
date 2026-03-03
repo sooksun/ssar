@@ -70,6 +70,7 @@ export default async function NewLessonPlanPage({
         currentFiscalYear={currentFiscalYear}
         currentUserId={user.id}
         defaultSchoolId={defaultSchoolId}
+        defaultTeacherName={user.name ?? ''}
       />
       <BackLink href="/lesson-plans" label="ย้อนกลับรายการ" className="mt-6" />
     </div>

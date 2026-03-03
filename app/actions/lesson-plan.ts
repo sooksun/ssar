@@ -48,6 +48,40 @@ const LESSON_PLAN_STATUS_SET = new Set<LessonPlanStatus>([
 const isLessonPlanStatus = (value: string): value is LessonPlanStatus =>
   LESSON_PLAN_STATUS_SET.has(value as LessonPlanStatus);
 
+/** รูปแบบรหัสแผน: LP-{ปีพ.ศ.}-{ลำดับ 3 หลัก} เช่น LP-2568-001 */
+const LESSON_PLAN_CODE_PREFIX = 'LP-';
+
+/**
+ * สร้างรหัสแผนการสอนถัดไปสำหรับโรงเรียนและปีการศึกษา (อัตโนมัติก่อนบันทึก)
+ */
+export async function getNextLessonPlanCode(
+  schoolId: bigint,
+  academicYear: number
+): Promise<string> {
+  const prefix = `${LESSON_PLAN_CODE_PREFIX}${academicYear}-`;
+  const plans = await prisma.lessonPlan.findMany({
+    where: {
+      schoolId,
+      academicYear,
+      del: false,
+      code: { startsWith: prefix },
+    },
+    select: { code: true },
+  });
+
+  let maxSeq = 0;
+  const regex = new RegExp(`^${LESSON_PLAN_CODE_PREFIX}${academicYear}-(\\d+)$`);
+  for (const p of plans) {
+    const m = p.code?.trim().match(regex);
+    if (m) {
+      const seq = parseInt(m[1], 10);
+      if (!Number.isNaN(seq) && seq > maxSeq) maxSeq = seq;
+    }
+  }
+  const nextSeq = maxSeq + 1;
+  return `${LESSON_PLAN_CODE_PREFIX}${academicYear}-${String(nextSeq).padStart(3, '0')}`;
+}
+
 /**
  * สร้างแผนการสอนใหม่
  */
@@ -95,11 +129,17 @@ export async function createLessonPlan(formData: FormData) {
     const schoolId = BigInt(validated.schoolId);
     const status: LessonPlanStatus = validated.status;
 
+    // สร้างรหัสแผนการสอนอัตโนมัติถ้าไม่ได้กรอก
+    let code = validated.code?.trim() || null;
+    if (!code) {
+      code = await getNextLessonPlanCode(schoolId, validated.academicYear);
+    }
+
     // สร้างแผนการสอน
     const lessonPlan = await prisma.lessonPlan.create({
       data: {
         schoolId,
-        code: validated.code || null,
+        code,
         academicYear: validated.academicYear,
         fiscalYear: validated.fiscalYear,
         semester: validated.semester ?? null,

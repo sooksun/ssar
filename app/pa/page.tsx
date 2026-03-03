@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { BackLink } from '@/components/ui/back-link';
 import { CreatePAAgreementForm } from '@/app/pa/create-pa-agreement-form';
 import { DownloadDirectorPptxButton } from '@/app/pa/download-director-pptx-button';
+import { PATeacherDocumentsSection } from '@/app/pa/teacher-documents-section';
 import { getUserSchools } from '@/lib/auth/scoping';
 import { prisma } from '@/lib/db';
-import { thaiFiscalYear } from '@/lib/evidence';
+import { thaiAcademicYear, thaiFiscalYear } from '@/lib/evidence';
 
 const PA_STATUS_LABEL: Record<string, string> = {
   DRAFT: 'ร่าง',
@@ -157,6 +158,11 @@ export default async function PAPage() {
           </div>
         )}
       </div>
+
+      <PATeacherDocumentsSection
+        schools={schools.map((s) => ({ id: s.sc_id.toString(), name: s.name }))}
+        currentAcademicYear={thaiAcademicYear()}
+      />
 
       <div className="rounded-xl border bg-muted/30 p-6">
         <h3 className="font-semibold mb-2">เกี่ยวกับ PA</h3>

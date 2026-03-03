@@ -20,6 +20,8 @@ interface LessonPlanFormProps {
   currentFiscalYear: number;
   currentUserId: string;
   defaultSchoolId: string;
+  /** ชื่อจริงของ user ที่ล็อกอิน — ใช้เติมในช่องชื่อครูผู้สอน */
+  defaultTeacherName?: string;
 }
 
 export default function LessonPlanForm({
@@ -44,7 +46,7 @@ export default function LessonPlanForm({
   const [room, setRoom] = useState<string>('');
   const [subject, setSubject] = useState<string>('');
   const [description, setDescription] = useState<string>('');
-  const [teacherName, setTeacherName] = useState<string>('');
+  const [teacherName, setTeacherName] = useState<string>(defaultTeacherName);
   const [planDate, setPlanDate] = useState<string>('');
   const [reflection, setReflection] = useState<string>('');
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -156,7 +158,7 @@ export default function LessonPlanForm({
           <div className="rounded-md bg-red-50 p-4 text-sm text-red-800">{error}</div>
         )}
 
-        {/* 1. รหัสแผนการสอน */}
+        {/* 1. รหัสแผนการสอน (อัตโนมัติถ้าเว้นว่าง) */}
         <div className="space-y-2">
           <label htmlFor="code" className="text-sm font-medium">
             รหัสแผนการสอน
@@ -166,9 +168,12 @@ export default function LessonPlanForm({
             id="code"
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            placeholder="เช่น LP-2568-001"
+            placeholder="เว้นว่างไว้ ระบบจะสร้างอัตโนมัติเมื่อบันทึก (เช่น LP-2568-001)"
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
+          <p className="text-xs text-muted-foreground">
+            ไม่กรอกได้ — ระบบจะสร้างรหัสรูปแบบ LP-ปีพ.ศ.-ลำดับ ให้อัตโนมัติก่อนบันทึก
+          </p>
         </div>
 
         {/* 2. ชื่อแผนการสอน */}

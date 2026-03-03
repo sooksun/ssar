@@ -1,0 +1,23 @@
+-- ตารางบันทึกไฟล์ PA 1/ส, PA 2/ส, PA 3/ส ของครู ต่อโรงเรียนต่อปีการศึกษา
+-- รันเมื่อใช้ Prisma migrate หรือสร้างตารางเอง
+
+-- ถ้าใช้ Prisma: npx prisma migrate dev --name add_pateacherdocument
+
+-- หรือสร้างตารางเอง (MySQL):
+-- CREATE TABLE IF NOT EXISTS pateacherdocument (
+--   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+--   schoolId BIGINT UNSIGNED NOT NULL,
+--   academicYear INT NOT NULL,
+--   documentType VARCHAR(10) NOT NULL,
+--   fileName VARCHAR(500) NOT NULL,
+--   storageType VARCHAR(20) NOT NULL DEFAULT 'URL',
+--   storagePath VARCHAR(1000) NULL,
+--   externalUrl VARCHAR(1000) NULL,
+--   fileSize INT NULL,
+--   mimeType VARCHAR(255) NULL,
+--   uploadedBy BIGINT UNSIGNED NULL,
+--   uploadedAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+--   PRIMARY KEY (id),
+--   UNIQUE KEY schoolId_academicYear_documentType (schoolId, academicYear, documentType),
+--   KEY schoolId_academicYear (schoolId, academicYear)
+-- );

@@ -1,0 +1,237 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/lib/toast';
+import { useRouter } from 'next/navigation';
+import { getAcademicYearOptions } from '@/lib/year-options';
+
+type School = { id: string; name: string };
+
+type DocRecord = {
+  id: string;
+  documentType: string;
+  fileName: string;
+  storageType: string;
+  storagePath: string | null;
+  externalUrl: string | null;
+  uploadedAt: string;
+};
+
+type DocsState = {
+  PA1: DocRecord | null;
+  PA2: DocRecord | null;
+  PA3: DocRecord | null;
+};
+
+const LABEL: Record<string, string> = {
+  PA1: 'PA 1/ส',
+  PA2: 'PA 2/ส',
+  PA3: 'PA 3/ส',
+};
+
+export function PATeacherDocumentsSection({
+  schools,
+  currentAcademicYear,
+}: {
+  schools: School[];
+  currentAcademicYear: number;
+}) {
+  const router = useRouter();
+  const [schoolId, setSchoolId] = useState(schools[0]?.id ?? '');
+  const [academicYear, setAcademicYear] = useState(currentAcademicYear);
+  const [docs, setDocs] = useState<DocsState>({ PA1: null, PA2: null, PA3: null });
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [gdriveLinks, setGdriveLinks] = useState<Record<string, string>>({ PA1: '', PA2: '', PA3: '' });
+
+  const fetchDocs = useCallback(async () => {
+    if (!schoolId) return;
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/pa/teacher-documents?schoolId=${encodeURIComponent(schoolId)}&academicYear=${academicYear}`
+      );
+      const json = await res.json();
+      if (json.success && json.data) {
+        setDocs(json.data);
+      } else {
+        setDocs({ PA1: null, PA2: null, PA3: null });
+      }
+    } catch {
+      toast.error('โหลดข้อมูลไม่สำเร็จ');
+    } finally {
+      setLoading(false);
+    }
+  }, [schoolId, academicYear]);
+
+  useEffect(() => {
+    fetchDocs();
+  }, [fetchDocs]);
+
+  const academicYearOptions = getAcademicYearOptions(2560, currentAcademicYear + 1);
+
+  async function handleUpload(type: 'PA1' | 'PA2' | 'PA3', formData: FormData) {
+    setUploading(type);
+    try {
+      const res = await fetch('/api/pa/teacher-documents', {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.error || 'อัปโหลดไม่สำเร็จ');
+        return;
+      }
+      toast.success(`บันทึก${LABEL[type]}เรียบร้อย`);
+      router.refresh();
+      await fetchDocs();
+    } catch {
+      toast.error('เกิดข้อผิดพลาด');
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  function onFileChange(type: 'PA1' | 'PA2' | 'PA3', e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.set('schoolId', schoolId);
+    fd.set('academicYear', String(academicYear));
+    fd.set('documentType', type);
+    fd.set('storageType', 'URL');
+    fd.append('files', file);
+    handleUpload(type, fd);
+    e.target.value = '';
+  }
+
+  function onGdriveSubmit(type: 'PA1' | 'PA2' | 'PA3') {
+    const url = gdriveLinks[type]?.trim();
+    if (!url) {
+      toast.warning('กรุณาระบุลิงก์ Google Drive');
+      return;
+    }
+    const fd = new FormData();
+    fd.set('schoolId', schoolId);
+    fd.set('academicYear', String(academicYear));
+    fd.set('documentType', type);
+    fd.set('storageType', 'GDRIVE');
+    fd.set('storagePath', url);
+    fd.set('fileName', LABEL[type]);
+    handleUpload(type, fd);
+  }
+
+  if (schools.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border bg-card p-6">
+      <h2 className="text-xl font-semibold mb-2">บันทึก PA 1/ส, PA 2/ส, PA 3/ส (ของครู)</h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        อัปโหลดไฟล์หรือแนบลิงก์ Google Drive ตามปีการศึกษา — โรงเรียนละชุดต่อปี
+      </p>
+
+      <div className="flex flex-wrap gap-4 mb-6">
+        <div className="space-y-1">
+          <label className="text-sm font-medium">โรงเรียน</label>
+          <select
+            value={schoolId}
+            onChange={(e) => setSchoolId(e.target.value)}
+            className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm w-[220px]"
+          >
+            {schools.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm font-medium">ปีการศึกษา</label>
+          <select
+            value={academicYear}
+            onChange={(e) => setAcademicYear(Number(e.target.value))}
+            className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm w-[120px]"
+          >
+            {academicYearOptions.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">กำลังโหลด...</p>
+      ) : (
+        <div className="space-y-6">
+          {(['PA1', 'PA2', 'PA3'] as const).map((type) => (
+            <div
+              key={type}
+              className="rounded-lg border bg-muted/30 p-4 flex flex-col sm:flex-row sm:items-center gap-4"
+            >
+              <div className="min-w-[100px] font-medium">{LABEL[type]}</div>
+              <div className="flex-1 space-y-2">
+                {docs[type] ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-muted-foreground">{docs[type]!.fileName}</span>
+                    {docs[type]!.storagePath && (
+                      <a
+                        href={
+                          docs[type]!.storageType === 'GDRIVE'
+                            ? docs[type]!.externalUrl || docs[type]!.storagePath
+                            : docs[type]!.storagePath!
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline text-sm"
+                      >
+                        เปิด/ดาวน์โหลด
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground">ยังไม่มีไฟล์</span>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png"
+                      onChange={(e) => onFileChange(type, e)}
+                      disabled={uploading !== null}
+                    />
+                    <span className="inline-flex h-10 items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent">
+                      {uploading === type ? 'กำลังอัปโหลด...' : 'เลือกไฟล์'}
+                    </span>
+                  </label>
+                  <span className="text-muted-foreground text-sm">หรือ</span>
+                  <input
+                    type="url"
+                    placeholder="ลิงก์ Google Drive"
+                    value={gdriveLinks[type]}
+                    onChange={(e) =>
+                      setGdriveLinks((prev) => ({ ...prev, [type]: e.target.value }))
+                    }
+                    className="flex h-10 w-64 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onGdriveSubmit(type)}
+                    disabled={uploading !== null}
+                  >
+                    บันทึกลิงก์
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

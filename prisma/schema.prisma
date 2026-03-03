@@ -53,6 +53,7 @@ model School {
   lessonPlanFiles      LessonPlanFile[]
   paAgreements         PAAgreement[]
   paSummaries          PASummary[]
+  paTeacherDocuments   PATeacherDocument[]
   developmentSummaries DevelopmentSummary[]
 
   @@index([areaId])
@@ -957,4 +958,25 @@ model PASummary {
   @@unique([userId, fiscalYear])
   @@index([schoolId, fiscalYear])
   @@map("pasummary")
+}
+
+/// บันทึกไฟล์ PA 1/ส, PA 2/ส, PA 3/ส ของครู ต่อโรงเรียนต่อปีการศึกษา (อัปโหลดไฟล์แทน)
+model PATeacherDocument {
+  id            BigInt   @id @default(autoincrement())
+  school        School   @relation(fields: [schoolId], references: [sc_id])
+  schoolId      BigInt
+  academicYear  Int      // ปีการศึกษา (พ.ศ.)
+  documentType  String   // PA1, PA2, PA3 (PA 1/ส, PA 2/ส, PA 3/ส)
+  fileName      String
+  storageType   String   @default("URL") // URL หรือ GDRIVE
+  storagePath   String?  // path ใน uploads หรือ URL ลิงก์
+  externalUrl   String?
+  fileSize      Int?
+  mimeType      String?
+  uploadedBy    BigInt?
+  uploadedAt    DateTime @default(now())
+
+  @@unique([schoolId, academicYear, documentType])
+  @@index([schoolId, academicYear])
+  @@map("pateacherdocument")
 }
