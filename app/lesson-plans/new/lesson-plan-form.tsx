@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createLessonPlan } from '@/app/actions/lesson-plan';
+import { createLessonPlan, addLessonPlanFile } from '@/app/actions/lesson-plan';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import Swal from 'sweetalert2';
+import { toast } from '@/lib/toast';
 import { getAcademicYearOptions, getFiscalYearOptions } from '@/lib/year-options';
+import { DatePickerTh } from '@/components/ui/date-picker-th';
 
 interface School {
   id: string;
@@ -46,6 +47,8 @@ export default function LessonPlanForm({
   const [teacherName, setTeacherName] = useState<string>('');
   const [planDate, setPlanDate] = useState<string>('');
   const [reflection, setReflection] = useState<string>('');
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [driveLink, setDriveLink] = useState<string>('');
 
   const planTypeOptions = [
     { value: '', label: '-- เลือกประเภท --' },
@@ -92,37 +95,56 @@ export default function LessonPlanForm({
         .then(async (result) => {
           if (!result.success) {
             setError(result.error || 'เกิดข้อผิดพลาด');
-            await Swal.fire({
-              icon: 'error',
-              title: 'บันทึกไม่สำเร็จ',
-              text: result.error || 'เกิดข้อผิดพลาดในการบันทึก',
-              confirmButtonText: 'ตกลง',
-            });
+            toast.error(result.error || 'เกิดข้อผิดพลาดในการบันทึก');
             return;
           }
 
-          await Swal.fire({
-            icon: 'success',
-            title: 'บันทึกสำเร็จ',
-            text: 'สร้างแผนการสอนเรียบร้อยแล้ว',
-            confirmButtonText: 'ตกลง',
-          });
-
-          if (result.data?.id) {
-            router.push(`/lesson-plans/${result.data.id}`);
+          const newId = result.data?.id;
+          if (newId) {
+            let uploadError: string | null = null;
+            if (attachedFiles.length > 0) {
+              const fd = new FormData();
+              fd.append('storageType', 'URL');
+              fd.append('fileType', 'PLAN');
+              attachedFiles.forEach((f) => fd.append('files', f));
+              try {
+                const res = await fetch(`/api/lesson-plans/${newId}/files`, {
+                  method: 'POST',
+                  body: fd,
+                });
+                const data = await res.json();
+                if (!data.success) uploadError = data.error || 'อัปโหลดไฟล์ไม่สำเร็จ';
+              } catch {
+                uploadError = 'ไม่สามารถอัปโหลดไฟล์ได้';
+              }
+            }
+            if (!uploadError && driveLink.trim()) {
+              const fd = new FormData();
+              fd.append('lessonPlanId', newId);
+              fd.append('storageType', 'GDRIVE');
+              fd.append('storagePath', driveLink.trim());
+              fd.append('fileName', 'ลิงก์ Google Drive');
+              fd.append('fileType', 'PLAN');
+              const res = await addLessonPlanFile(fd);
+              if (!res.success) uploadError = res.error || 'เพิ่มลิงก์ไม่สำเร็จ';
+            }
+            if (uploadError) {
+              toast.warning(uploadError);
+            } else if (attachedFiles.length > 0 || driveLink.trim()) {
+              toast.success('สร้างแผนการสอนและแนบไฟล์เรียบร้อยแล้ว');
+            } else {
+              toast.success('สร้างแผนการสอนเรียบร้อยแล้ว');
+            }
+            router.push(`/lesson-plans/${newId}`);
           } else {
+            toast.success('สร้างแผนการสอนเรียบร้อยแล้ว');
             router.push('/lesson-plans');
           }
         })
-        .catch(async (error) => {
+        .catch((error) => {
           const message = error instanceof Error ? error.message : 'เกิดข้อผิดพลาด';
           setError(message);
-          await Swal.fire({
-            icon: 'error',
-            title: 'บันทึกไม่สำเร็จ',
-            text: message,
-            confirmButtonText: 'ตกลง',
-          });
+          toast.error(message);
         });
     });
   }
@@ -252,9 +274,56 @@ export default function LessonPlanForm({
           />
         </div>
 
-        <p className="text-sm text-muted-foreground">
-          ไฟล์แนบแผนการสอน — บันทึกแล้วสามารถแนบไฟล์ได้ในหน้ารายละเอียดแผน
-        </p>
+        {/* 8. ไฟล์แนบแผนการสอน */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold">ไฟล์แนบแผนการสอน</h3>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground block">
+              อัปโหลดไฟล์ (PDF, Word, PowerPoint)
+            </label>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,.ppt,.pptx"
+              multiple
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground"
+              onChange={(e) => {
+                const list = Array.from(e.target.files ?? []);
+                setAttachedFiles((prev) => [...prev, ...list]);
+              }}
+            />
+            {attachedFiles.length > 0 && (
+              <ul className="text-sm text-muted-foreground list-disc list-inside">
+                {attachedFiles.map((f, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    {f.name}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAttachedFiles((prev) => prev.filter((_, j) => j !== i))
+                      }
+                      className="text-destructive hover:underline"
+                    >
+                      ลบ
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="driveLink" className="text-sm text-muted-foreground block">
+              หรือลิงก์ Google Drive
+            </label>
+            <input
+              id="driveLink"
+              type="url"
+              value={driveLink}
+              onChange={(e) => setDriveLink(e.target.value)}
+              placeholder="https://drive.google.com/..."
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+        </div>
 
         {/* 9. อื่น ๆ ที่จำเป็น: ปีการศึกษา ภาคเรียน วันที่ ชื่อครู โรงเรียน */}
         <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
@@ -335,12 +404,10 @@ export default function LessonPlanForm({
               <label htmlFor="planDate" className="text-sm font-medium">
                 วันที่
               </label>
-              <input
-                type="date"
+              <DatePickerTh
                 id="planDate"
                 value={planDate}
-                onChange={(e) => setPlanDate(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onChange={(v) => setPlanDate(v)}
               />
             </div>
             <div className="space-y-2 sm:col-span-2">

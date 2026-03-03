@@ -12,7 +12,7 @@ import {
 import { getEvidenceStatusLabel } from '@/lib/status';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import Swal from 'sweetalert2';
+import { toast } from '@/lib/toast';
 import { getAcademicYearOptions, getFiscalYearOptions } from '@/lib/year-options';
 
 interface School {
@@ -253,36 +253,21 @@ export default function EvidenceForm({
         .then(async (result) => {
           if (!result.success) {
             setError(result.error || 'เกิดข้อผิดพลาด');
-            await Swal.fire({
-              icon: 'error',
-              title: 'บันทึกไม่สำเร็จ',
-              text: result.error || 'เกิดข้อผิดพลาดในการบันทึกหลักฐาน',
-              confirmButtonText: 'ตกลง',
-            });
+            toast.error(result.error || 'เกิดข้อผิดพลาดในการบันทึกหลักฐาน');
             return;
           }
 
-          await Swal.fire({
-            icon: 'success',
-            title: 'บันทึกสำเร็จ',
-            text: 'สร้างหลักฐานเรียบร้อยแล้ว',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.success('สร้างหลักฐานเรียบร้อยแล้ว');
 
           // ถ้าสำเร็จ redirect ไปหน้าที่กำหนด
           if (result.redirectTo) {
             router.push(result.redirectTo);
           }
         })
-        .catch(async (error) => {
+        .catch((error) => {
           const message = error instanceof Error ? error.message : 'เกิดข้อผิดพลาด';
           setError(message);
-          await Swal.fire({
-            icon: 'error',
-            title: 'บันทึกไม่สำเร็จ',
-            text: error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึกหลักฐาน',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.error(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึกหลักฐาน');
         });
     });
   }

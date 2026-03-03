@@ -16,7 +16,7 @@ import {
   isImageFile,
   isVideoFile,
 } from '@/lib/file-types';
-import Swal from 'sweetalert2';
+import { toast } from '@/lib/toast';
 
 type FileItem = {
   id: string;
@@ -87,31 +87,16 @@ export default function LessonPlanFilesForm({
           if (!res.success) {
             const message = res.error || 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์';
             setError(message);
-            await Swal.fire({
-              icon: 'error',
-              title: 'อัปโหลดไม่สำเร็จ',
-              text: message,
-              confirmButtonText: 'ตกลง',
-            });
+            toast.error(message);
             return;
           }
-          await Swal.fire({
-            icon: 'success',
-            title: 'อัปโหลดสำเร็จ',
-            text: 'เพิ่มไฟล์เรียบร้อยแล้ว',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.success('เพิ่มไฟล์เรียบร้อยแล้ว');
           router.refresh();
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์';
           setError(message);
-          await Swal.fire({
-            icon: 'error',
-            title: 'อัปโหลดไม่สำเร็จ',
-            text: message,
-            confirmButtonText: 'ตกลง',
-          });
+          toast.error(message);
         }
       })();
     });
@@ -592,32 +577,16 @@ export default function LessonPlanFilesForm({
                                 try {
                                   const res = await updateLessonPlanFile(fd);
                                   if (!res.success) {
-                                    await Swal.fire({
-                                      icon: 'error',
-                                      title: 'บันทึกไม่สำเร็จ',
-                                      text: res.error || 'ไม่สามารถบันทึกไฟล์ได้',
-                                      confirmButtonText: 'ตกลง',
-                                    });
+                                    toast.error(res.error || 'ไม่สามารถบันทึกไฟล์ได้');
                                     return;
                                   }
-                                  await Swal.fire({
-                                    icon: 'success',
-                                    title: 'บันทึกสำเร็จ',
-                                    text: 'อัปเดตข้อมูลไฟล์เรียบร้อยแล้ว',
-                                    confirmButtonText: 'ตกลง',
-                                  });
+                                  toast.success('อัปเดตข้อมูลไฟล์เรียบร้อยแล้ว');
                                   setEditingId(null);
                                   router.refresh();
                                 } catch (error) {
-                                  await Swal.fire({
-                                    icon: 'error',
-                                    title: 'บันทึกไม่สำเร็จ',
-                                    text:
-                                      error instanceof Error
-                                        ? error.message
-                                        : 'ไม่สามารถบันทึกไฟล์ได้',
-                                    confirmButtonText: 'ตกลง',
-                                  });
+                                  toast.error(
+                                    error instanceof Error ? error.message : 'ไม่สามารถบันทึกไฟล์ได้'
+                                  );
                                 }
                               })();
                             })
@@ -639,31 +608,15 @@ export default function LessonPlanFilesForm({
                               try {
                                 const res = await setPrimaryLessonPlanFile(lessonPlanId, f.id);
                                 if (!res.success) {
-                                  await Swal.fire({
-                                    icon: 'error',
-                                    title: 'ตั้งไฟล์หลักไม่สำเร็จ',
-                                    text: res.error || 'ไม่สามารถตั้งไฟล์หลักได้',
-                                    confirmButtonText: 'ตกลง',
-                                  });
+                                  toast.error(res.error || 'ไม่สามารถตั้งไฟล์หลักได้');
                                   return;
                                 }
-                                await Swal.fire({
-                                  icon: 'success',
-                                  title: 'ตั้งเป็นไฟล์หลักสำเร็จ',
-                                  text: 'ปรับไฟล์หลักเรียบร้อยแล้ว',
-                                  confirmButtonText: 'ตกลง',
-                                });
+                                toast.success('ปรับไฟล์หลักเรียบร้อยแล้ว');
                                 router.refresh();
                               } catch (error) {
-                                await Swal.fire({
-                                  icon: 'error',
-                                  title: 'ตั้งไฟล์หลักไม่สำเร็จ',
-                                  text:
-                                    error instanceof Error
-                                      ? error.message
-                                      : 'ไม่สามารถตั้งไฟล์หลักได้',
-                                  confirmButtonText: 'ตกลง',
-                                });
+                                toast.error(
+                                  error instanceof Error ? error.message : 'ไม่สามารถตั้งไฟล์หลักได้'
+                                );
                               }
                             })();
                           })
@@ -681,31 +634,15 @@ export default function LessonPlanFilesForm({
                               try {
                                 const res = await deleteLessonPlanFile(lessonPlanId, f.id);
                                 if (!res.success) {
-                                  await Swal.fire({
-                                    icon: 'error',
-                                    title: 'ลบไฟล์ไม่สำเร็จ',
-                                    text: res.error || 'ไม่สามารถลบไฟล์ได้',
-                                    confirmButtonText: 'ตกลง',
-                                  });
+                                  toast.error(res.error || 'ไม่สามารถลบไฟล์ได้');
                                   return;
                                 }
-                                await Swal.fire({
-                                  icon: 'success',
-                                  title: 'ลบสำเร็จ',
-                                  text: 'ลบไฟล์เรียบร้อยแล้ว',
-                                  confirmButtonText: 'ตกลง',
-                                });
+                                toast.success('ลบไฟล์เรียบร้อยแล้ว');
                                 router.refresh();
                               } catch (error) {
-                                await Swal.fire({
-                                  icon: 'error',
-                                  title: 'ลบไฟล์ไม่สำเร็จ',
-                                  text:
-                                    error instanceof Error
-                                      ? error.message
-                                      : 'ไม่สามารถลบไฟล์ได้',
-                                  confirmButtonText: 'ตกลง',
-                                });
+                                toast.error(
+                                  error instanceof Error ? error.message : 'ไม่สามารถลบไฟล์ได้'
+                                );
                               }
                             })();
                           })

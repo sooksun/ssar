@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import Swal from 'sweetalert2';
+import { toast } from '@/lib/toast';
 
 interface AIAnalyzePanelProps {
   evidenceId: string;
@@ -48,31 +48,18 @@ export default function AIAnalyzePanel({
         });
         const data = await res.json();
         if (!res.ok) {
-          await Swal.fire({
-            icon: 'error',
-            title: 'วิเคราะห์ไม่สำเร็จ',
-            text: data.error || 'เกิดข้อผิดพลาด',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.error(data.error || 'เกิดข้อผิดพลาด');
           return;
         }
         setResult(data);
         router.refresh();
-        await Swal.fire({
-          icon: 'success',
-          title: 'วิเคราะห์สำเร็จ',
-          text: data.hasGemini
+        toast.success(
+          data.hasGemini
             ? 'AI วิเคราะห์หลักฐานเรียบร้อย'
-            : 'สร้างข้อมูลจาก metadata (ไม่ได้ใช้ AI - ตั้งค่า GEMINI_API_KEY เพื่อเปิดใช้)',
-          confirmButtonText: 'ตกลง',
-        });
+            : 'สร้างข้อมูลจาก metadata (ไม่ได้ใช้ AI - ตั้งค่า GEMINI_API_KEY เพื่อเปิดใช้)'
+        );
       } catch (err) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'เกิดข้อผิดพลาด',
-          text: err instanceof Error ? err.message : 'ไม่สามารถวิเคราะห์ได้',
-          confirmButtonText: 'ตกลง',
-        });
+        toast.error(err instanceof Error ? err.message : 'ไม่สามารถวิเคราะห์ได้');
       }
     });
   };

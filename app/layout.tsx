@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Kanit } from 'next/font/google';
 import './globals.css';
 import AppHeader from '@/components/app-header';
+import { Providers } from '@/components/providers';
 import { auth } from '@/lib/auth/nextauth';
 
 const kanit = Kanit({
@@ -35,10 +36,12 @@ export default async function RootLayout({
   return (
     <html lang="th" suppressHydrationWarning>
       <body className={`${kanit.variable} font-sans antialiased`} suppressHydrationWarning>
-        <div className="min-h-screen bg-background" suppressHydrationWarning>
-          <AppHeader session={session} />
-          <main>{children}</main>
-        </div>
+        <Providers>
+          <div className="min-h-screen bg-background" suppressHydrationWarning>
+            <AppHeader session={session} />
+            <main>{children}</main>
+          </div>
+        </Providers>
       </body>
     </html>
   );

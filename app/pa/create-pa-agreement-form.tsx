@@ -3,7 +3,8 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import Swal from 'sweetalert2';
+import { DatePickerTh } from '@/components/ui/date-picker-th';
+import { toast } from '@/lib/toast';
 import { getFiscalYearOptions } from '@/lib/year-options';
 import * as Dialog from '@radix-ui/react-dialog';
 
@@ -57,7 +58,7 @@ export function CreatePAAgreementForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!schoolId) {
-      Swal.fire({ icon: 'warning', title: 'กรุณาเลือกโรงเรียน', confirmButtonText: 'ตกลง' });
+      toast.warning('กรุณาเลือกโรงเรียน');
       return;
     }
     startTransition(async () => {
@@ -76,32 +77,17 @@ export function CreatePAAgreementForm({
         });
         const data = await res.json();
         if (!res.ok) {
-          await Swal.fire({
-            icon: 'error',
-            title: 'สร้างข้อตกลงไม่สำเร็จ',
-            text: data.error || 'เกิดข้อผิดพลาด',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.error(data.error || 'เกิดข้อผิดพลาด');
           return;
         }
-        await Swal.fire({
-          icon: 'success',
-          title: 'สร้างข้อตกลงสำเร็จ',
-          text: `สร้างข้อตกลง PA ปีงบประมาณ ${fiscalYear} เรียบร้อยแล้ว`,
-          confirmButtonText: 'ตกลง',
-        });
+        toast.success(`สร้างข้อตกลง PA ปีงบประมาณ ${fiscalYear} เรียบร้อยแล้ว`);
         setOpen(false);
         router.refresh();
         if (data.id) {
           router.push(`/pa/agreements/${data.id}`);
         }
       } catch (err) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'เกิดข้อผิดพลาด',
-          text: err instanceof Error ? err.message : 'ไม่สามารถสร้างข้อตกลงได้',
-          confirmButtonText: 'ตกลง',
-        });
+        toast.error(err instanceof Error ? err.message : 'ไม่สามารถสร้างข้อตกลงได้');
       }
     });
   };
@@ -185,24 +171,20 @@ export function CreatePAAgreementForm({
                 <label htmlFor="pa-start-date" className="text-sm font-medium">
                   วันเริ่มต้น
                 </label>
-                <input
+                <DatePickerTh
                   id="pa-start-date"
-                  type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className={inputClass}
+                  onChange={(v) => setStartDate(v)}
                 />
               </div>
               <div className="space-y-2">
                 <label htmlFor="pa-end-date" className="text-sm font-medium">
                   วันสิ้นสุด
                 </label>
-                <input
+                <DatePickerTh
                   id="pa-end-date"
-                  type="date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className={inputClass}
+                  onChange={(v) => setEndDate(v)}
                 />
               </div>
             </div>

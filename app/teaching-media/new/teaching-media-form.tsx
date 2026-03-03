@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createTeachingMedia } from '@/app/actions/teaching-media';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import Swal from 'sweetalert2';
+import { toast } from '@/lib/toast';
 import { getAcademicYearOptions, getFiscalYearOptions } from '@/lib/year-options';
 
 interface School {
@@ -64,21 +64,11 @@ export default function TeachingMediaForm({
         .then(async (result) => {
           if (!result.success) {
             setError(result.error || 'เกิดข้อผิดพลาด');
-            await Swal.fire({
-              icon: 'error',
-              title: 'บันทึกไม่สำเร็จ',
-              text: result.error || 'เกิดข้อผิดพลาดในการบันทึก',
-              confirmButtonText: 'ตกลง',
-            });
+            toast.error(result.error || 'เกิดข้อผิดพลาดในการบันทึก');
             return;
           }
 
-          await Swal.fire({
-            icon: 'success',
-            title: 'บันทึกสำเร็จ',
-            text: 'สร้างสื่อการสอนเรียบร้อยแล้ว',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.success('สร้างสื่อการสอนเรียบร้อยแล้ว');
 
           if (result.data?.id) {
             router.push(`/teaching-media/${result.data.id}`);
@@ -86,15 +76,10 @@ export default function TeachingMediaForm({
             router.push('/teaching-media');
           }
         })
-        .catch(async (error) => {
+        .catch((error) => {
           const message = error instanceof Error ? error.message : 'เกิดข้อผิดพลาด';
           setError(message);
-          await Swal.fire({
-            icon: 'error',
-            title: 'บันทึกไม่สำเร็จ',
-            text: message,
-            confirmButtonText: 'ตกลง',
-          });
+          toast.error(message);
         });
     });
   }

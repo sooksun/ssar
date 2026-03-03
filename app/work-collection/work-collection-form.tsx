@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createWorkCollectionItem } from '@/app/actions/evidence';
 import { Button } from '@/components/ui/button';
 import { isVideoFile } from '@/lib/file-types';
-import Swal from 'sweetalert2';
+import { toast } from '@/lib/toast';
 
 const MAX_IMAGE_DOC_FILES = 5;
 const MAX_VIDEO_FILES = 1;
@@ -45,11 +45,11 @@ export default function WorkCollectionForm({
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!title.trim()) {
-      Swal.fire({ icon: 'warning', title: 'กรุณาระบุชื่อหรือหัวข้อหลักฐาน', confirmButtonText: 'ตกลง' });
+      toast.warning('กรุณาระบุชื่อหรือหัวข้อหลักฐาน');
       return;
     }
     if (!schoolId) {
-      Swal.fire({ icon: 'warning', title: 'กรุณาเลือกโรงเรียน', confirmButtonText: 'ตกลง' });
+      toast.warning('กรุณาเลือกโรงเรียน');
       return;
     }
 
@@ -57,19 +57,11 @@ export default function WorkCollectionForm({
       const filesArray = Array.from(uploadFiles);
       const hasVideo = filesArray.some((f) => isVideoFile(f.name, f.type));
       if (hasVideo && filesArray.length > MAX_VIDEO_FILES) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'อัปโหลดวิดีโอได้ครั้งละ 1 ไฟล์เท่านั้น',
-          confirmButtonText: 'ตกลง',
-        });
+        toast.warning('อัปโหลดวิดีโอได้ครั้งละ 1 ไฟล์เท่านั้น');
         return;
       }
       if (!hasVideo && filesArray.length > MAX_IMAGE_DOC_FILES) {
-        Swal.fire({
-          icon: 'warning',
-          title: `รูปภาพหรือเอกสาร PDF/PPT แนบได้ครั้งละไม่เกิน ${MAX_IMAGE_DOC_FILES} ไฟล์`,
-          confirmButtonText: 'ตกลง',
-        });
+        toast.warning(`รูปภาพหรือเอกสาร PDF/PPT แนบได้ครั้งละไม่เกิน ${MAX_IMAGE_DOC_FILES} ไฟล์`);
         return;
       }
     }
@@ -96,52 +88,29 @@ export default function WorkCollectionForm({
         const result = await createWorkCollectionItem(formData);
 
         if (!result.success) {
-          await Swal.fire({
-            icon: 'error',
-            title: 'บันทึกไม่สำเร็จ',
-            text: result.error || 'เกิดข้อผิดพลาด',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.error(result.error || 'เกิดข้อผิดพลาด');
           return;
         }
 
         const evidenceId = result.evidenceId!;
         if (result.fileError) {
-          await Swal.fire({
-            icon: 'warning',
-            title: 'บันทึกหลักฐานแล้ว แต่เพิ่มไฟล์ไม่สำเร็จ',
-            text: result.fileError,
-            confirmButtonText: 'ตกลง',
-          });
+          toast.warning(result.fileError);
         }
 
         const analyzeRes = await fetch(`/api/evidence/${evidenceId}/analyze`, { method: 'POST' });
         const analyzeData = await analyzeRes.json();
         if (!analyzeRes.ok) {
-          await Swal.fire({
-            icon: 'warning',
-            title: 'บันทึกหลักฐานแล้ว',
-            text: 'เรียก AI วิเคราะห์ไม่สำเร็จ — สามารถกดปุ่ม "AI วิเคราะห์" ในหน้ารายละเอียดหลักฐานภายหลังได้',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.warning(
+            'เรียก AI วิเคราะห์ไม่สำเร็จ — สามารถกดปุ่ม "AI วิเคราะห์" ในหน้ารายละเอียดหลักฐานภายหลังได้'
+          );
         } else if (analyzeData.hasGemini) {
-          await Swal.fire({
-            icon: 'success',
-            title: 'บันทึกและวิเคราะห์เรียบร้อย',
-            text: 'ระบบได้เชื่อมโยงตัวชี้วัด QA และ PA ตามที่ AI แนะนำแล้ว',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.success('ระบบได้เชื่อมโยงตัวชี้วัด QA และ PA ตามที่ AI แนะนำแล้ว');
         }
 
         router.push(`/evidence/${evidenceId}`);
         router.refresh();
       } catch (err) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'เกิดข้อผิดพลาด',
-          text: err instanceof Error ? err.message : 'ไม่สามารถบันทึกได้',
-          confirmButtonText: 'ตกลง',
-        });
+        toast.error(err instanceof Error ? err.message : 'ไม่สามารถบันทึกได้');
       }
     });
   };

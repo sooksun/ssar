@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   createExternalEvaluation,
   updateExternalEvaluation,
   deleteExternalEvaluation,
 } from '@/app/actions/external-evaluation';
 import { Button } from '@/components/ui/button';
-import Swal from 'sweetalert2';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { toast } from '@/lib/toast';
 
 type ExternalEvaluationItem = {
   id: string;
@@ -109,6 +111,7 @@ export default function ExternalEvaluationsPanel({
   currentUserOrg: string;
   evaluations: ExternalEvaluationItem[];
 }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -129,6 +132,7 @@ export default function ExternalEvaluationsPanel({
       ? scoredEvaluations.reduce((sum, item) => sum + (item.score || 0), 0) / scoredEvaluations.length
       : null;
   const reachedLimit = evaluations.length >= 3;
+  const { confirm, ConfirmDialog } = useConfirm();
 
   function resetForm() {
     setFormState({});
@@ -153,31 +157,16 @@ export default function ExternalEvaluationsPanel({
           if (!res.success) {
             const message = res.error || 'ไม่สามารถบันทึกการประเมินภายในได้';
             setError(message);
-            await Swal.fire({
-              icon: 'error',
-              title: 'บันทึกไม่สำเร็จ',
-              text: message,
-              confirmButtonText: 'ตกลง',
-            });
+            toast.error(message);
             return;
           }
           resetForm();
-          await Swal.fire({
-            icon: 'success',
-            title: 'บันทึกสำเร็จ',
-            text: 'เพิ่มการประเมินภายในเรียบร้อยแล้ว',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.success('เพิ่มการประเมินภายในเรียบร้อยแล้ว');
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'ไม่สามารถบันทึกการประเมินภายในได้';
           setError(message);
-          await Swal.fire({
-            icon: 'error',
-            title: 'บันทึกไม่สำเร็จ',
-            text: message,
-            confirmButtonText: 'ตกลง',
-          });
+          toast.error(message);
         }
       })();
     });
@@ -197,12 +186,7 @@ export default function ExternalEvaluationsPanel({
               .trim();
           const evaluatorName = trim(current.evaluatorName ?? item.evaluatorName);
           if (!evaluatorName) {
-            await Swal.fire({
-              icon: 'error',
-              title: 'บันทึกไม่สำเร็จ',
-              text: 'กรุณาระบุชื่อผู้ประเมิน',
-              confirmButtonText: 'ตกลง',
-            });
+            toast.error('กรุณาระบุชื่อผู้ประเมิน');
             return;
           }
           fd.set('evaluatorName', evaluatorName);
@@ -243,71 +227,46 @@ export default function ExternalEvaluationsPanel({
 
           const res = await updateExternalEvaluation(fd);
           if (!res.success) {
-            await Swal.fire({
-              icon: 'error',
-              title: 'บันทึกไม่สำเร็จ',
-            text: res.error || 'ไม่สามารถบันทึกการประเมินภายในได้',
-              confirmButtonText: 'ตกลง',
-            });
+            toast.error(res.error || 'ไม่สามารถบันทึกการประเมินภายในได้');
             return;
           }
           setEditingId(null);
-          await Swal.fire({
-            icon: 'success',
-            title: 'บันทึกสำเร็จ',
-            text: 'อัปเดตการประเมินภายในเรียบร้อยแล้ว',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.success('อัปเดตการประเมินภายในเรียบร้อยแล้ว');
         } catch (error) {
-          await Swal.fire({
-            icon: 'error',
-            title: 'บันทึกไม่สำเร็จ',
-            text:
-              error instanceof Error
-                ? error.message
-                : 'ไม่สามารถบันทึกการประเมินภายในได้',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.error(
+            error instanceof Error ? error.message : 'ไม่สามารถบันทึกการประเมินภายในได้'
+          );
         }
       })();
     });
   }
 
   async function handleDelete(id: string) {
-    const confirm = await Swal.fire({
-      icon: 'warning',
+    const ok = await confirm({
       title: 'ยืนยันการลบ',
-      text: 'คุณต้องการลบการประเมินภายในนี้หรือไม่?',
-      showCancelButton: true,
-      confirmButtonText: 'ลบ',
-      cancelButtonText: 'ยกเลิก',
+      message: 'คุณต้องการลบการประเมินภายในนี้หรือไม่?',
+      confirmText: 'ลบ',
+      cancelText: 'ยกเลิก',
+      variant: 'destructive',
     });
-    if (!confirm.isConfirmed) return;
+    if (!ok) return;
 
     startTransition(() => {
       (async () => {
         const res = await deleteExternalEvaluation(id);
         if (!res.success) {
-          await Swal.fire({
-            icon: 'error',
-            title: 'ลบไม่สำเร็จ',
-          text: res.error || 'ไม่สามารถลบการประเมินภายในได้',
-            confirmButtonText: 'ตกลง',
-          });
+          toast.error(res.error || 'ไม่สามารถลบการประเมินภายในได้');
           return;
         }
-        await Swal.fire({
-          icon: 'success',
-          title: 'ลบสำเร็จ',
-          text: 'ลบการประเมินภายในเรียบร้อยแล้ว',
-          confirmButtonText: 'ตกลง',
-        });
+        toast.success('ลบการประเมินภายในเรียบร้อยแล้ว');
+        router.refresh();
       })();
     });
   }
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog />
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <p className="text-sm text-muted-foreground">
           จำกัดการประเมินภายในไม่เกิน 3 รายการต่อหลักฐาน ผู้ประเมินคนเดิมบันทึกได้ 1 ครั้ง
