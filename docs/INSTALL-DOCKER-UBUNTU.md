@@ -136,7 +136,7 @@ npx prisma migrate deploy
 |--------|-----|
 | App path | `/DATA/AppData/www/ssar` |
 | Port | **9954** |
-| Uploads (volume) | `./public/uploads` → `/app/public/uploads` |
+| Uploads (volume) | `./public/uploads` → `/app/public/uploads` (ถ้าย้ายจากเครื่องอื่น ต้อง copy โฟลเดอร์นี้ไปที่ server ด้วย ไม่งั้นรูปเดิมจะ 404) |
 | DB | ภายนอก MariaDB (เช่น 192.168.1.4) |
 
 ---
@@ -164,4 +164,4 @@ docker compose ps
 
 - **Prisma:** ทำงานกับ MariaDB 11.4 ได้ ใช้ `authPlugin=mysql_native_password` ตามที่ Dataserver รองรับ
 - **SSL:** ถ้า MariaDB เปิด SSL ให้เพิ่มพารามิเตอร์ใน `DATABASE_URL` ตามที่ Prisma รองรับ
-- **Reverse proxy:** ถ้าใช้ Nginx/Caddy หน้า 9954 ให้ตั้ง proxy_pass ไปที่ `http://127.0.0.1:9954`
+- **Reverse proxy:** ถ้าใช้ Nginx Proxy Manager หรือ Caddy ให้ตั้ง **Forward Port = 9954** (ไม่ใช่ 9950) ไปที่ `http://192.168.1.4:9954` หรือ `http://127.0.0.1:9954`

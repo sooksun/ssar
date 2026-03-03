@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { EvidenceFile } from '@prisma/client';
 import { isVideoFile } from '@/lib/file-types';
-import { X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Loader2, ImageOff } from 'lucide-react';
 
 type FileViewerProps = {
   file: Partial<EvidenceFile> & {
@@ -40,8 +40,10 @@ export function FileViewer({ file }: FileViewerProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   // State สำหรับ loading
   const [isLoading, setIsLoading] = useState(true);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadedImagesCount, setLoadedImagesCount] = useState(0);
+  // รูปที่โหลดไม่สำเร็จ (404) — แสดง placeholder
+  const [failedImageIndices, setFailedImageIndices] = useState<Set<number>>(new Set());
+  const [modalImageError, setModalImageError] = useState(false);
 
   // ตรวจสอบว่าเป็นไฟล์รูปภาพหรือไม่ (ต้องประกาศก่อนใช้)
   const isImageFile = (fileName?: string | null, mimeType?: string | null): boolean => {
@@ -151,6 +153,11 @@ export function FileViewer({ file }: FileViewerProps) {
       clearTimeout(fallbackTimeout);
     };
   }, [fileUrls, file.id, loadedImagesCount]);
+
+  // รีเซ็ต error ของรูปใน modal เมื่อเปลี่ยนรูป
+  useEffect(() => {
+    setModalImageError(false);
+  }, [currentImageIndex]);
 
   // สร้าง YouTube embed URL
   const getYouTubeEmbedUrl = (url: string): string | null => {
@@ -566,35 +573,41 @@ export function FileViewer({ file }: FileViewerProps) {
                   <div key={index} className="group flex flex-col">
                     <div
                       className="relative aspect-square w-full overflow-hidden rounded-lg bg-muted shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer"
-                      onClick={() => openModal(index)}
+                      onClick={() => !failedImageIndices.has(index) && openModal(index)}
                     >
-                      <Image
-                        src={img.url}
-                        alt={img.fileName || `รูปภาพ ${index + 1}`}
-                        width={400}
-                        height={400}
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
-                        unoptimized
-                        onLoad={() => {
-                          setLoadedImagesCount((prev) => {
-                            const newCount = prev + 1;
-                            if (newCount >= fileUrls.length) {
-                              setIsLoading(false);
-                            }
-                            return newCount;
-                          });
-                        }}
-                        onError={() => {
-                          setLoadedImagesCount((prev) => {
-                            const newCount = prev + 1;
-                            if (newCount >= fileUrls.length) {
-                              setIsLoading(false);
-                            }
-                            return newCount;
-                          });
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      {failedImageIndices.has(index) ? (
+                        <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-muted p-4 text-center">
+                          <ImageOff className="h-12 w-12 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">ไฟล์ไม่พบ (404)</span>
+                        </div>
+                      ) : (
+                        <Image
+                          src={img.url}
+                          alt={img.fileName || `รูปภาพ ${index + 1}`}
+                          width={400}
+                          height={400}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                          unoptimized
+                          onLoad={() => {
+                            setLoadedImagesCount((prev) => {
+                              const newCount = prev + 1;
+                              if (newCount >= fileUrls.length) setIsLoading(false);
+                              return newCount;
+                            });
+                          }}
+                          onError={() => {
+                            setFailedImageIndices((prev) => new Set(prev).add(index));
+                            setLoadedImagesCount((prev) => {
+                              const newCount = prev + 1;
+                              if (newCount >= fileUrls.length) setIsLoading(false);
+                              return newCount;
+                            });
+                          }}
+                        />
+                      )}
+                      {!failedImageIndices.has(index) && (
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      )}
                     </div>
                     <div className="mt-3 space-y-2">
                       <p className="text-sm font-semibold text-foreground line-clamp-2 min-h-[2.5rem]">
@@ -659,15 +672,23 @@ export function FileViewer({ file }: FileViewerProps) {
                   className="relative max-h-[90vh] max-w-[90vw]"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <Image
-                    src={fileUrls[currentImageIndex].url}
-                    alt={fileUrls[currentImageIndex].fileName || `รูปภาพ ${currentImageIndex + 1}`}
-                    width={1200}
-                    height={1200}
-                    className="max-h-[90vh] max-w-[90vw] object-contain"
-                    unoptimized
-                    priority
-                  />
+                  {modalImageError || failedImageIndices.has(currentImageIndex) ? (
+                    <div className="flex min-h-[200px] min-w-[200px] flex-col items-center justify-center gap-3 rounded-lg bg-muted/80 p-8 text-center">
+                      <ImageOff className="h-16 w-16 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">ไฟล์ไม่พบ (404)</p>
+                    </div>
+                  ) : (
+                    <Image
+                      src={fileUrls[currentImageIndex].url}
+                      alt={fileUrls[currentImageIndex].fileName || `รูปภาพ ${currentImageIndex + 1}`}
+                      width={1200}
+                      height={1200}
+                      className="max-h-[90vh] max-w-[90vw] object-contain"
+                      unoptimized
+                      priority
+                      onError={() => setModalImageError(true)}
+                    />
+                  )}
 
                   {/* Image Info */}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 text-white">

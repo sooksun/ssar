@@ -53,6 +53,7 @@ export default function FilesForm({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState('');
   const [storageType, setStorageType] = useState<'YOUTUBE' | 'GDRIVE' | 'URL' | 'CANVA' | 'LINK'>('URL');
+  const [failedThumbnailIds, setFailedThumbnailIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editState, setEditState] = useState<Record<string, Partial<FileItem>>>({});
   const allowedListText = describeAllowedFileTypes();
@@ -339,7 +340,7 @@ export default function FilesForm({
 
               const thumbnailContent = (
                 <>
-                  {previewSrc ? (
+                  {previewSrc && !failedThumbnailIds.has(f.id) ? (
                     <Image
                       src={previewSrc}
                       alt={`ไฟล์ ${f.fileName}`}
@@ -347,7 +348,12 @@ export default function FilesForm({
                       height={64}
                       className="h-full w-full object-cover"
                       unoptimized
+                      onError={() => setFailedThumbnailIds((prev) => new Set(prev).add(f.id))}
                     />
+                  ) : previewSrc && failedThumbnailIds.has(f.id) ? (
+                    <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
+                      ไม่มีพรีวิว
+                    </div>
                   ) : f.storageType === 'YOUTUBE' ? (
                     <Image
                       src="/youtube.png"
@@ -374,7 +380,7 @@ export default function FilesForm({
                     <div className="flex h-full w-full items-center justify-center bg-blue-500 text-white text-xs font-bold">
                       LINK
                     </div>
-                  ) : isVideo && previewSrc ? (
+                  ) : isVideo && previewSrc && !failedThumbnailIds.has(f.id) ? (
                     <Image
                       src={previewSrc}
                       alt={`Thumbnail ${f.fileName}`}
@@ -382,6 +388,7 @@ export default function FilesForm({
                       height={64}
                       className="h-full w-full object-cover"
                       unoptimized
+                      onError={() => setFailedThumbnailIds((prev) => new Set(prev).add(f.id))}
                     />
                   ) : isVideo ? (
                     <div className="flex h-full w-full items-center justify-center bg-red-500 text-white text-xs font-bold">
