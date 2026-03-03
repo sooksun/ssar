@@ -31,7 +31,8 @@ export function DatePickerTh({ value, onChange, ...rest }: DatePickerThProps) {
   const dayjsValue = parseInputDate(value ?? undefined);
 
   const handleChange: DatePickerProps['onChange'] = (d) => {
-    onChange?.(toInputDateString(d ?? null));
+    const single = Array.isArray(d) ? null : d ?? null;
+    onChange?.(toInputDateString(single));
   };
 
   return (
