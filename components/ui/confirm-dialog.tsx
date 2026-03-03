@@ -21,7 +21,7 @@ export function useConfirm() {
     cancelText: 'ยกเลิก',
     variant: 'default',
   });
-  const resolveRef = useRef<(value: boolean) => void>();
+  const resolveRef = useRef<((value: boolean) => void) | undefined>(undefined);
 
   const confirm = useCallback((opts: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
