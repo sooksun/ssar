@@ -237,10 +237,13 @@ export default async function EvidenceDetailPage({
                 const primary = evidence.indicator.standard.level.code === code ? evidence.indicator : null;
                 const mapped = (evidence.indicatorMappings || [])
                   .filter((m) => m.indicator.standard.level.code === code)
-                  .map((m) => ({ indicator: m.indicator, reason: m.reason }));
+                  .map((m) => ({ indicator: m.indicator, reason: m.reason, isPrimary: false as const }));
                 const list = primary
-                  ? [{ indicator: primary, reason: null, isPrimary: true }, ...mapped.filter((m) => m.indicator.id !== primary.id)]
-                  : mapped.map((m) => ({ ...m, isPrimary: false }));
+                  ? [
+                      { indicator: primary, reason: null, isPrimary: true as const },
+                      ...mapped.filter((m) => m.indicator.id !== primary.id),
+                    ]
+                  : mapped;
                 if (list.length === 0) return null;
                 return (
                   <div key={code}>

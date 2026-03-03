@@ -24,6 +24,7 @@ ENV DATABASE_URL="mysql://user:pass@localhost:3306/db?schema=public"
 RUN npx prisma generate
 
 COPY . .
+ENV NODE_ENV=production
 RUN npm run build
 
 # --------------------------------------------
