@@ -47,4 +47,8 @@ next-env.d.ts
 # OS
 Thumbs.db
 
-public/uploads/evidence/2/videos/*.mp4 
+# uploads (avoid large files on GitHub)
+/public/uploads/
+# large archives
+ssar.zip
+*.zip
