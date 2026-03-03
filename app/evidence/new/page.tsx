@@ -55,12 +55,11 @@ export default async function NewEvidencePage({
     ? requestedSchoolId
     : schools[0].id;
 
-  // ดึงระดับการศึกษา
-  const levels = await prisma.eduLevel.findMany({
-    orderBy: {
-      id: 'asc',
-    },
+  // ดึงระดับการศึกษา (ไม่แสดง "การประเมินครูผู้ช่วย" ใน dropdown — ใช้เฉพาะปฐมวัย/ขั้นพื้นฐาน)
+  const allLevels = await prisma.eduLevel.findMany({
+    orderBy: { id: 'asc' },
   });
+  const levels = allLevels.filter((l) => l.code !== 'ASSISTANT_TEACHER');
 
   // ปีการศึกษาและปีงบประมาณปัจจุบัน
   const currentAcademicYear = thaiAcademicYear();

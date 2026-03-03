@@ -57,6 +57,28 @@ export default async function EvidenceDetailPage({
           },
         },
       },
+      indicatorMappings: {
+        include: {
+          indicator: {
+            include: {
+              standard: {
+                include: { level: true },
+              },
+            },
+          },
+        },
+      },
+      paMappings: {
+        include: {
+          agreementItem: {
+            include: {
+              agreement: { select: { positionType: true } },
+              indicator: { include: { aspect: true } },
+            },
+          },
+          indicator: { include: { aspect: true } },
+        },
+      },
       owner: {
         select: {
           fullName: true,
@@ -185,7 +207,7 @@ export default async function EvidenceDetailPage({
             </p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">ตัวชี้วัด</p>
+            <p className="text-sm text-muted-foreground">ตัวชี้วัดหลัก</p>
             <p className="font-medium">
               {evidence.indicator.code} - {evidence.indicator.nameTh}
             </p>
@@ -199,6 +221,81 @@ export default async function EvidenceDetailPage({
             <p className="font-medium">
               {evidence.owner?.fullName || 'ไม่ระบุ'}
             </p>
+          </div>
+          <div className="md:col-span-2">
+            <p className="text-sm text-muted-foreground mb-1">เชื่อมโยงกับตัวชี้วัด (หลายมุมมอง)</p>
+            <p className="text-xs text-muted-foreground mb-2">
+              หลักฐาน 1 ชิ้น (รูปภาพ, วิดีโอ, เอกสาร หรือลิงก์ YouTube/Google Drive/Canva) สามารถเชื่อมโยงกับตัวชี้วัดในหลายมุมมองได้
+            </p>
+            <div className="rounded-md border bg-muted/30 p-3 space-y-3 text-sm">
+              {/* มุมมอง QA: ปฐมวัย, ขั้นพื้นฐาน, ครูผู้ช่วย */}
+              {[
+                { code: 'EARLY_CHILDHOOD', label: 'ประกันคุณภาพ ปฐมวัย' },
+                { code: 'BASIC', label: 'ประกันคุณภาพ ขั้นพื้นฐาน' },
+                { code: 'ASSISTANT_TEACHER', label: 'ประเมินครูผู้ช่วย' },
+              ].map(({ code, label }) => {
+                const primary = evidence.indicator.standard.level.code === code ? evidence.indicator : null;
+                const mapped = (evidence.indicatorMappings || [])
+                  .filter((m) => m.indicator.standard.level.code === code)
+                  .map((m) => ({ indicator: m.indicator, reason: m.reason }));
+                const list = primary
+                  ? [{ indicator: primary, reason: null, isPrimary: true }, ...mapped.filter((m) => m.indicator.id !== primary.id)]
+                  : mapped.map((m) => ({ ...m, isPrimary: false }));
+                if (list.length === 0) return null;
+                return (
+                  <div key={code}>
+                    <span className="font-medium text-muted-foreground">{label}:</span>{' '}
+                    {list.map((item, i) => (
+                      <span key={item.indicator.id}>
+                        {i > 0 && ', '}
+                        <span className={item.isPrimary ? 'font-medium' : ''}>
+                          {item.indicator.code} – {item.indicator.nameTh}
+                        </span>
+                        {item.reason && <span className="text-muted-foreground"> ({item.reason})</span>}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })}
+              {/* มุมมอง PA: ครู, ผู้บริหาร */}
+              {[
+                { positionType: 'TEACHER', label: 'ประเมินผลการพัฒนางานตามข้อตกลง (PA) ของครู' },
+                { positionType: 'PRINCIPAL', label: 'ประเมินผลการพัฒนางานตามข้อตกลง (PA) ของผู้บริหาร' },
+              ].map(({ positionType, label }) => {
+                const paList = (evidence.paMappings || []).filter((pm) => {
+                  const pt = pm.agreementItem?.agreement?.positionType;
+                  if (pt) return pt === positionType;
+                  const aspectCode = pm.indicator?.aspect?.code ?? '';
+                  return positionType === 'TEACHER' ? aspectCode.startsWith('T') : aspectCode.startsWith('P');
+                });
+                const items = paList.map((pm) => {
+                  const ind = pm.agreementItem?.indicator ?? pm.indicator;
+                  const code = ind ? `${ind.aspect?.code ?? ''}.${ind.code}` : '';
+                  const name = ind?.nameTh ?? '';
+                  const note = pm.note ?? null;
+                  return { code, name, note, id: pm.id };
+                });
+                if (items.length === 0) return null;
+                return (
+                  <div key={positionType}>
+                    <span className="font-medium text-muted-foreground">{label}:</span>{' '}
+                    {items.map((item, i) => (
+                      <span key={item.id}>
+                        {i > 0 && ', '}
+                        <span>{item.code} – {item.name}</span>
+                        {item.note && <span className="text-muted-foreground"> ({item.note})</span>}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })}
+              {(!evidence.indicatorMappings || evidence.indicatorMappings.length === 0) &&
+                (!evidence.paMappings || evidence.paMappings.length === 0) && (
+                <p className="text-xs text-muted-foreground">
+                  ใช้ปุ่ม &quot;AI วิเคราะห์&quot; ด้านล่างเพื่อให้ระบบเชื่อมโยงหลักฐานชิ้นนี้กับตัวชี้วัดในทุกมุมมอง (QA ปฐมวัย / ขั้นพื้นฐาน / ครูผู้ช่วย และ PA ครู / ผู้บริหาร)
+                </p>
+              )}
+            </div>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">วันที่สร้าง</p>

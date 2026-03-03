@@ -5,9 +5,19 @@ import { getIndicatorCatalog } from './indicator-mapping';
 
 const GEMINI_MODEL = 'gemini-2.0-flash';
 
+/** ตัวชี้วัดที่ AI แนะนำ แยกตามมุมมอง (หลักฐาน 1 ชิ้นเชื่อมโยงได้หลายมุมมอง) */
+export type QAIndicatorsByLevel = {
+  EARLY_CHILDHOOD?: { code: string; reason: string }[];
+  BASIC?: { code: string; reason: string }[];
+  ASSISTANT_TEACHER?: { code: string; reason: string }[];
+};
+
 export interface AnalysisResult {
   summary: string;
   keywords: string[];
+  /** ตัวชี้วัด QA แยกตามมุมมอง: ปฐมวัย / ขั้นพื้นฐาน / ครูผู้ช่วย */
+  qaIndicatorsByLevel?: QAIndicatorsByLevel;
+  /** @deprecated ใช้ qaIndicatorsByLevel.BASIC แทน (คงไว้เพื่อ backward compat) */
   qaIndicators: { code: string; reason: string }[];
   paTeacherIndicators: { code: string; reason: string }[];
   paPrincipalIndicators: { code: string; reason: string }[];
@@ -36,14 +46,22 @@ function buildPrompt(context: { title: string; description?: string }): string {
 
   return `คุณเป็นผู้เชี่ยวชาญด้านการประเมินคุณภาพการศึกษาไทย (QA) และการประเมินผลการพัฒนางานตามข้อตกลง (PA)
 
-วิเคราะห์หลักฐานเชิงประจักษ์ต่อไปนี้:
+วิเคราะห์หลักฐานเชิงประจักษ์ต่อไปนี้ (รูปภาพ/วิดีโอ/PDF ฯลฯ):
 - ชื่อหลักฐาน: ${context.title}
 ${context.description ? `- รายละเอียด: ${context.description}` : ''}
 
+หลักฐาน 1 ชิ้นสามารถเชื่อมโยงกับตัวชี้วัดได้หลายมุมมอง: (1) ปฐมวัย (2) ขั้นพื้นฐาน (3) ครูผู้ช่วย — ให้วิเคราะห์แล้วระบุตัวชี้วัดที่เกี่ยวข้องในแต่ละมุมมองที่เหมาะสม
+
 ตัวชี้วัดที่มีในระบบ:
 
-## QA ขั้นพื้นฐาน
+## QA ปฐมวัย (EARLY_CHILDHOOD)
+${catalog.qaEarlyChildhood.map((i) => `- ${i.code}: ${i.nameTh}`).join('\n')}
+
+## QA ขั้นพื้นฐาน (BASIC)
 ${catalog.qaBasic.map((i) => `- ${i.code}: ${i.nameTh}`).join('\n')}
+
+## QA ครูผู้ช่วย (ASSISTANT_TEACHER)
+${catalog.qaAssistantTeacher.map((i) => `- ${i.code}: ${i.nameTh}`).join('\n')}
 
 ## PA ครู (TEACHER)
 ${catalog.paTeacher.map((i) => `- ${i.aspectCode}.${i.code}: ${i.nameTh}`).join('\n')}
@@ -55,7 +73,11 @@ ${catalog.paPrincipal.map((i) => `- ${i.aspectCode}.${i.code}: ${i.nameTh}`).joi
 {
   "summary": "สรุปเนื้อหาหลักฐาน 2-3 ประโยค",
   "keywords": ["คำสำคัญ1", "คำสำคัญ2"],
-  "qaIndicators": [{"code": "1.1", "reason": "เหตุผลสั้นๆ"}],
+  "qaIndicatorsByLevel": {
+    "EARLY_CHILDHOOD": [{"code": "1.1", "reason": "เหตุผลสั้นๆ"}],
+    "BASIC": [{"code": "3.1", "reason": "เหตุผลสั้นๆ"}],
+    "ASSISTANT_TEACHER": [{"code": "1.2", "reason": "เหตุผลสั้นๆ"}]
+  },
   "paTeacherIndicators": [{"code": "T1.1.1", "reason": "เหตุผลสั้นๆ"}],
   "paPrincipalIndicators": [{"code": "P1.1.1", "reason": "เหตุผลสั้นๆ"}],
   "qualityScore": 3,
@@ -64,7 +86,8 @@ ${catalog.paPrincipal.map((i) => `- ${i.aspectCode}.${i.code}: ${i.nameTh}`).joi
 
 กฎ:
 - qualityScore เป็นจำนวนเต็ม 1-5 (1=ต่ำ, 5=ดีมาก)
-- ระบุเฉพาะตัวชี้วัดที่เกี่ยวข้องจริง ไม่ต้องครบทุกตัว
+- ระบุเฉพาะตัวชี้วัดที่เกี่ยวข้องจริงในแต่ละมุมมอง ไม่ต้องครบทุกมุมมอง ถ้าไม่เกี่ยวข้องกับมุมมองนั้นให้ใช้ array ว่าง []
+- qaIndicatorsByLevel: หลักฐาน 1 ชิ้นอาจเชื่อมโยงได้ทั้งปฐมวัย/ขั้นพื้นฐาน/ครูผู้ช่วย — ให้วิเคราะห์แล้วใส่ code ตามตารางด้านบนของแต่ละมุมมอง
 - code ของ PA ครู ใช้รูปแบบ T{aspect}.{code} เช่น T1.1.1
 - code ของ PA ผู้บริหาร ใช้รูปแบบ P{aspect}.{code} เช่น P1.1.1
 - ตอบเป็น JSON เท่านั้น ไม่ต้องมี markdown code block`;
@@ -74,10 +97,21 @@ function parseJsonResponse(text: string): AnalysisResult {
   const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
   try {
     const parsed = JSON.parse(cleaned);
+    const byLevel = parsed.qaIndicatorsByLevel;
+    const qaByLevel: QAIndicatorsByLevel = {};
+    if (byLevel && typeof byLevel === 'object') {
+      if (Array.isArray(byLevel.EARLY_CHILDHOOD)) qaByLevel.EARLY_CHILDHOOD = byLevel.EARLY_CHILDHOOD;
+      if (Array.isArray(byLevel.BASIC)) qaByLevel.BASIC = byLevel.BASIC;
+      if (Array.isArray(byLevel.ASSISTANT_TEACHER)) qaByLevel.ASSISTANT_TEACHER = byLevel.ASSISTANT_TEACHER;
+    }
+    const qaIndicators = Array.isArray(parsed.qaIndicators)
+      ? parsed.qaIndicators
+      : (qaByLevel.BASIC ?? []);
     return {
       summary: parsed.summary ?? '',
       keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
-      qaIndicators: Array.isArray(parsed.qaIndicators) ? parsed.qaIndicators : [],
+      qaIndicatorsByLevel: Object.keys(qaByLevel).length > 0 ? qaByLevel : undefined,
+      qaIndicators,
       paTeacherIndicators: Array.isArray(parsed.paTeacherIndicators) ? parsed.paTeacherIndicators : [],
       paPrincipalIndicators: Array.isArray(parsed.paPrincipalIndicators) ? parsed.paPrincipalIndicators : [],
       qualityScore: typeof parsed.qualityScore === 'number' ? parsed.qualityScore : 3,
@@ -87,6 +121,7 @@ function parseJsonResponse(text: string): AnalysisResult {
     return {
       summary: text.slice(0, 500),
       keywords: [],
+      qaIndicatorsByLevel: undefined,
       qaIndicators: [],
       paTeacherIndicators: [],
       paPrincipalIndicators: [],

@@ -16,6 +16,11 @@ interface AIAnalyzePanelProps {
 interface AnalysisResult {
   aiSummary: string;
   aiKeywords: string[];
+  qaIndicatorsByLevel?: {
+    EARLY_CHILDHOOD?: { code: string; reason: string }[];
+    BASIC?: { code: string; reason: string }[];
+    ASSISTANT_TEACHER?: { code: string; reason: string }[];
+  };
   qaIndicators: { code: string; reason: string }[];
   paTeacherIndicators: { code: string; reason: string }[];
   paPrincipalIndicators: { code: string; reason: string }[];
@@ -163,21 +168,49 @@ export default function AIAnalyzePanel({
             </div>
           )}
 
-          {displayResult.qaIndicators.length > 0 && (
+          {(displayResult.qaIndicatorsByLevel || displayResult.qaIndicators.length > 0) && (
             <div>
               <p className="text-sm font-medium text-muted-foreground mb-1">
-                ตัวชี้วัด QA ที่เกี่ยวข้อง
+                ตัวชี้วัดที่เชื่อมโยง (หลายมุมมอง)
               </p>
-              <ul className="space-y-1">
-                {displayResult.qaIndicators.map((ind, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm">
-                    <span className="rounded bg-green-100 text-green-800 px-1.5 py-0.5 text-xs font-medium shrink-0">
-                      QA {ind.code}
-                    </span>
-                    <span className="text-muted-foreground">{ind.reason}</span>
-                  </li>
-                ))}
-              </ul>
+              {displayResult.qaIndicatorsByLevel ? (
+                <div className="space-y-2">
+                  {[
+                    { code: 'EARLY_CHILDHOOD', label: 'ปฐมวัย' },
+                    { code: 'BASIC', label: 'ขั้นพื้นฐาน' },
+                    { code: 'ASSISTANT_TEACHER', label: 'ครูผู้ช่วย' },
+                  ].map(({ code, label }) => {
+                    const arr = displayResult.qaIndicatorsByLevel![code as keyof typeof displayResult.qaIndicatorsByLevel];
+                    if (!arr?.length) return null;
+                    return (
+                      <div key={code}>
+                        <span className="text-xs font-medium text-muted-foreground">{label}:</span>
+                        <ul className="mt-0.5 space-y-0.5">
+                          {arr.map((ind, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm">
+                              <span className="rounded bg-green-100 text-green-800 px-1.5 py-0.5 text-xs font-medium shrink-0">
+                                {ind.code}
+                              </span>
+                              <span className="text-muted-foreground">{ind.reason}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <ul className="space-y-1">
+                  {displayResult.qaIndicators.map((ind, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <span className="rounded bg-green-100 text-green-800 px-1.5 py-0.5 text-xs font-medium shrink-0">
+                        QA {ind.code}
+                      </span>
+                      <span className="text-muted-foreground">{ind.reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 

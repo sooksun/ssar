@@ -9,7 +9,7 @@
 ### path โปรเจกต์
 
 ```bash
-cd /DATA/AppData/www/sar
+cd /DATA/AppData/www/ssar
 ```
 
 ### ความต้องการ
@@ -41,7 +41,7 @@ DATABASE_URL="mysql://casaos:casaos@192.168.1.4:3306/qa_external?schema=public&a
 ## 3. ตั้งค่า .env บน server
 
 ```bash
-cd /DATA/AppData/www/sar
+cd /DATA/AppData/www/ssar
 cp .env.docker.example .env
 nano .env   # หรือ vi
 ```
@@ -58,19 +58,19 @@ nano .env   # หรือ vi
 ## 4. Build และรัน
 
 ```bash
-cd /DATA/AppData/www/sar
+cd /DATA/AppData/www/ssar
 
 # Build image
 docker compose build
 
-# รัน (แอปที่พอร์ต 3000, uploads อยู่ที่ ./public/uploads)
+# รัน (แอปที่พอร์ต 9954, uploads อยู่ที่ ./public/uploads)
 docker compose up -d
 
 # ดู log
 docker compose logs -f app
 ```
 
-แอปจะ listen ที่ `http://localhost:3000` (หรือ IP ของ host)
+แอปจะ listen ที่ `http://localhost:9954` (หรือ IP ของ host)
 
 ---
 
@@ -79,7 +79,7 @@ docker compose logs -f app
 Migration **ไม่รันอัตโนมัติ** ใน container. รันบน host (หรือในเครื่องที่มี Prisma + เข้าถึง DB ได้):
 
 ```bash
-cd /DATA/AppData/www/sar
+cd /DATA/AppData/www/ssar
 # ใช้ Node จาก host หรือรันใน container ชั่วคราว
 docker compose run --rm app node -e "
   require('dotenv').config();
@@ -103,8 +103,8 @@ npx prisma migrate deploy
 
 | รายการ        | ค่า |
 |---------------|-----|
-| App path      | `/DATA/AppData/www/sar` |
-| Port          | 3000 |
+| App path      | `/DATA/AppData/www/ssar` |
+| Port          | 9954 |
 | Uploads (volume) | `./public/uploads` → `/app/public/uploads` |
 | DB            | ภายนอก MariaDB ที่ 192.168.1.4 |
 

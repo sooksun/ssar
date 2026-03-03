@@ -24,9 +24,14 @@ export default async function EvidencePage({
   const schoolIds = roles.map((role) => BigInt(role.schoolId));
 
   // กำหนดแท็บที่เลือกจาก query param
+  const LEVEL_TABS = [
+    { code: 'EARLY_CHILDHOOD', label: 'ปฐมวัย' },
+    { code: 'BASIC', label: 'ขั้นพื้นฐาน' },
+  ] as const;
   const { level } = await searchParams;
-  const activeLevel = level === 'BASIC' ? 'BASIC' : 'EARLY_CHILDHOOD';
-  const activeLabel = activeLevel === 'BASIC' ? 'พื้นฐาน' : 'ปฐมวัย';
+  const activeLevel =
+    LEVEL_TABS.some((t) => t.code === level) ? level! : 'EARLY_CHILDHOOD';
+  const activeLabel = LEVEL_TABS.find((t) => t.code === activeLevel)?.label ?? 'ปฐมวัย';
 
   // ดึงรายการหลักฐาน (จำกัดเฉพาะโรงเรียนที่ user มีสิทธิ์)
   const allEvidence = await prisma.evidence.findMany({
@@ -95,28 +100,21 @@ export default async function EvidencePage({
         </Link>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs: ปฐมวัย, ขั้นพื้นฐาน เท่านั้น */}
       <div className="mb-6 flex items-center gap-2">
-        <Link
-          href={`/evidence?level=EARLY_CHILDHOOD`}
-          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-            activeLevel === 'EARLY_CHILDHOOD'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-secondary text-secondary-foreground hover:bg-accent'
-          }`}
-        >
-          ปฐมวัย
-        </Link>
-        <Link
-          href={`/evidence?level=BASIC`}
-          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-            activeLevel === 'BASIC'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-secondary text-secondary-foreground hover:bg-accent'
-          }`}
-        >
-          พื้นฐาน
-        </Link>
+        {LEVEL_TABS.map((tab) => (
+          <Link
+            key={tab.code}
+            href={`/evidence?level=${tab.code}`}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              activeLevel === tab.code
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-secondary-foreground hover:bg-accent'
+            }`}
+          >
+            {tab.label}
+          </Link>
+        ))}
       </div>
 
       {/* Filter Section */}

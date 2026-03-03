@@ -16,6 +16,7 @@ import {
   analyzeEvidenceUrl,
   analyzeEvidenceText,
   type AnalysisResult,
+  type QAIndicatorsByLevel,
 } from '@/lib/ai/gemini';
 
 export async function POST(
@@ -87,6 +88,9 @@ export async function POST(
       result = {
         summary: `หลักฐาน: ${evidence.title}. ประเภทไฟล์: ${fileType || 'ไม่ระบุ'}. ตัวชี้วัดหลัก: ${evidence.indicator.code} - ${evidence.indicator.nameTh}.`,
         keywords: [evidence.indicator.code, fileName.slice(0, 30)],
+        qaIndicatorsByLevel: {
+          BASIC: [{ code: evidence.indicator.code, reason: 'ตัวชี้วัดหลักที่ผู้ใช้ระบุ' }],
+        },
         qaIndicators: [{ code: evidence.indicator.code, reason: 'ตัวชี้วัดหลักที่ผู้ใช้ระบุ' }],
         paTeacherIndicators: [],
         paPrincipalIndicators: [],
@@ -95,10 +99,17 @@ export async function POST(
       };
     }
 
-    // รวม indicator codes ทั้งหมด
+    // รวม indicator codes ทั้งหมด (จากทุกมุมมอง: ปฐมวัย / ขั้นพื้นฐาน / ครูผู้ช่วย)
+    const qaCodesFromByLevel: string[] = [];
+    if (result.qaIndicatorsByLevel) {
+      for (const arr of Object.values(result.qaIndicatorsByLevel)) {
+        if (Array.isArray(arr)) qaCodesFromByLevel.push(...arr.map((i) => i.code));
+      }
+    }
     const allIndicatorCodes = [
       evidence.indicator.code,
-      ...result.qaIndicators.map((i) => `QA:${i.code}`),
+      ...qaCodesFromByLevel.map((c) => `QA:${c}`),
+      ...(result.qaIndicators || []).map((i) => `QA:${i.code}`),
       ...result.paTeacherIndicators.map((i) => i.code),
       ...result.paPrincipalIndicators.map((i) => i.code),
     ];
@@ -134,22 +145,51 @@ export async function POST(
       updatedBy: BigInt(session.user.id),
     };
 
-    if (result.qaIndicators.length > 0) {
-      const firstQACode = result.qaIndicators[0].code;
+    // ตัวชี้วัดหลัก (indicatorId): ใช้จาก BASIC ก่อน ถ้าไม่มีใช้จากมุมมองอื่น
+    const basicFirst = result.qaIndicatorsByLevel?.BASIC?.[0] ?? result.qaIndicators?.[0];
+    if (basicFirst) {
       const qaIndicator = await prisma.qAIndicator.findFirst({
         where: {
-          code: firstQACode,
+          code: basicFirst.code,
           standard: { level: { code: 'BASIC' } },
         },
         select: { id: true },
       });
       if (qaIndicator) updateData.indicatorId = qaIndicator.id;
     }
+    if (!updateData.indicatorId && result.qaIndicatorsByLevel) {
+      const firstArr =
+        result.qaIndicatorsByLevel.ASSISTANT_TEACHER?.[0] ??
+        result.qaIndicatorsByLevel.EARLY_CHILDHOOD?.[0];
+      if (firstArr) {
+        const qaIndicator = await prisma.qAIndicator.findFirst({
+          where: {
+            code: firstArr.code,
+            standard: {
+              level: {
+                code: firstArr === result.qaIndicatorsByLevel.ASSISTANT_TEACHER?.[0]
+                  ? 'ASSISTANT_TEACHER'
+                  : 'EARLY_CHILDHOOD',
+              },
+            },
+          },
+          select: { id: true },
+        });
+        if (qaIndicator) updateData.indicatorId = qaIndicator.id;
+      }
+    }
 
     await prisma.evidence.update({
       where: { id: evidenceId },
       data: updateData,
     });
+
+    // บันทึกการเชื่อมโยงหลักฐานกับตัวชี้วัดหลายมุมมอง (ปฐมวัย / ขั้นพื้นฐาน / ครูผู้ช่วย)
+    await saveEvidenceIndicatorMappings(
+      evidenceId,
+      result.qaIndicatorsByLevel ?? (result.qaIndicators?.length ? { BASIC: result.qaIndicators } : {}),
+      BigInt(session.user.id),
+    );
 
     // PQA: หลักฐานหนึ่งชิ้นรองรับได้ทั้ง QA และ PA — auto-link กับรายการ PA ที่ AI แนะนำ (ถ้ามีข้อตกลงอยู่แล้ว)
     if (
@@ -172,6 +212,7 @@ export async function POST(
       success: true,
       aiSummary: result.summary,
       aiKeywords: result.keywords,
+      qaIndicatorsByLevel: result.qaIndicatorsByLevel,
       qaIndicators: result.qaIndicators,
       paTeacherIndicators: result.paTeacherIndicators,
       paPrincipalIndicators: result.paPrincipalIndicators,
@@ -185,6 +226,50 @@ export async function POST(
       { error: error instanceof Error ? error.message : 'เกิดข้อผิดพลาด' },
       { status: 500 },
     );
+  }
+}
+
+/**
+ * บันทึกการเชื่อมโยงหลักฐานกับตัวชี้วัดหลายมุมมอง (ปฐมวัย / ขั้นพื้นฐาน / ครูผู้ช่วย)
+ * หลักฐาน 1 ชิ้นวิเคราะห์แล้วเชื่อมโยงได้กับหลายตัวชี้วัดในแต่ละมุมมอง
+ */
+async function saveEvidenceIndicatorMappings(
+  evidenceId: bigint,
+  qaIndicatorsByLevel: QAIndicatorsByLevel,
+  _updatedBy: bigint,
+) {
+  const levelCodes = ['EARLY_CHILDHOOD', 'BASIC', 'ASSISTANT_TEACHER'] as const;
+  await prisma.evidenceIndicatorMapping.deleteMany({ where: { evidenceId, source: 'AI' } });
+
+  for (const levelCode of levelCodes) {
+    const items = qaIndicatorsByLevel[levelCode];
+    if (!Array.isArray(items) || items.length === 0) continue;
+
+    for (const { code, reason } of items) {
+      const indicator = await prisma.qAIndicator.findFirst({
+        where: {
+          code,
+          standard: { level: { code: levelCode } },
+        },
+        select: { id: true },
+      });
+      if (!indicator) continue;
+
+      await prisma.evidenceIndicatorMapping.upsert({
+        where: {
+          evidenceId_indicatorId: { evidenceId, indicatorId: indicator.id },
+        },
+        create: {
+          evidenceId,
+          indicatorId: indicator.id,
+          reason: reason?.slice(0, 500) ?? null,
+          source: 'AI',
+        },
+        update: {
+          reason: reason?.slice(0, 500) ?? null,
+        },
+      });
+    }
   }
 }
 

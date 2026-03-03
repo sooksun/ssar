@@ -48,9 +48,9 @@ COPY --from=base /app/public ./public
 
 RUN mkdir -p public/uploads/evidence public/uploads/lesson-plans public/uploads/teaching-media public/uploads/external-evaluations
 
-EXPOSE 3000
+EXPOSE 9954
 
-ENV PORT=3000
+ENV PORT=9954
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]

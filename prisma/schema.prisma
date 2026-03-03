@@ -153,8 +153,8 @@ model QAStandard {
 }
 
 model QAIndicator {
-  id                       BigInt                    @id @default(autoincrement())
-  standard                 QAStandard                @relation(fields: [standardId], references: [id])
+  id                       BigInt                     @id @default(autoincrement())
+  standard                 QAStandard                 @relation(fields: [standardId], references: [id])
   standardId               BigInt
   code                     String
   nameTh                   String
@@ -166,6 +166,7 @@ model QAIndicator {
   selfAssessmentIndicators SelfAssessmentIndicator[]
   indicatorScales          IndicatorScale[]
   teachingMedia            TeachingMedia[]
+  evidenceMappings         EvidenceIndicatorMapping[]
 
   @@unique([standardId, code])
   @@map("qaindicator")
@@ -207,6 +208,8 @@ model Evidence {
   selfAssessmentLinks SelfAssessmentEvidenceLink[]
   externalEvaluations ExternalEvaluation[]
   paMappings          PAEvidenceMapping[]
+  /// หลักฐาน 1 ชิ้นเชื่อมโยงกับตัวชี้วัดได้หลายมุมมอง (ปฐมวัย / ขั้นพื้นฐาน / ครูผู้ช่วย)
+  indicatorMappings    EvidenceIndicatorMapping[]
   // PRD: indicatorCodes, evidenceType, AI, PDPA
   indicatorCodes      Json?    // รหัสตัวชี้วัดเพิ่มเติม เช่น ["1.1","2.1"]
   evidenceType        String?  // LESSON_PLAN, TEACHING_MEDIA, ASSESSMENT, STUDENT_WORK, CLASSROOM_PHOTO, REFLECTION, ACTION_RESEARCH, OTHER
@@ -220,6 +223,22 @@ model Evidence {
   @@index([schoolId, fiscalYear, indicatorId, status])
   @@index([schoolId, academicYear, indicatorId, status])
   @@map("evidence")
+}
+
+/// การเชื่อมโยงหลักฐานกับตัวชี้วัดหลายมุมมอง — หลักฐาน 1 ชิ้นวิเคราะห์เชื่อมโยงได้ทั้ง ปฐมวัย / ขั้นพื้นฐาน / ครูผู้ช่วย
+model EvidenceIndicatorMapping {
+  id          BigInt        @id @default(autoincrement())
+  evidence    Evidence      @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  evidenceId  BigInt
+  indicator   QAIndicator   @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  indicatorId BigInt
+  reason      String?       // เหตุผล/หมายเหตุ (จาก AI หรือผู้ใช้)
+  source      String?       // AI | USER
+  createdAt   DateTime      @default(now())
+
+  @@unique([evidenceId, indicatorId])
+  @@index([evidenceId])
+  @@map("evidenceindicatormapping")
 }
 
 enum EvidenceStatus {

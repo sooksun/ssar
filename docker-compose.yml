@@ -1,5 +1,5 @@
 # SSAR — Docker Compose สำหรับ Ubuntu host
-# Path แนะนำบน server: /DATA/AppData/www/sar
+# Path แนะนำบน server: /DATA/AppData/www/ssar
 # ใช้ MariaDB ภายนอกที่ 192.168.1.4 (ไม่รัน DB ใน Docker)
 
 services:
@@ -10,12 +10,13 @@ services:
     container_name: ssar-app
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "9954:9954"
     env_file:
       - .env
     environment:
       NODE_ENV: production
       HOSTNAME: "0.0.0.0"
+      PORT: "9954"
     volumes:
       # เก็บไฟล์อัปโหลด (evidence, lesson-plans, teaching-media, external-evaluations)
       - ./public/uploads:/app/public/uploads

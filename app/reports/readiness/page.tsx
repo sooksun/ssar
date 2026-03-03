@@ -89,10 +89,16 @@ export default async function ReadinessReportPage({
     };
   });
 
-  // กำหนดแท็บที่เลือกจาก query param
+  // กำหนดแท็บที่เลือกจาก query param (รวมมุมมองการประเมินครูผู้ช่วย)
+  const LEVEL_TABS = [
+    { code: 'EARLY_CHILDHOOD', label: 'ปฐมวัย' },
+    { code: 'BASIC', label: 'ขั้นพื้นฐาน' },
+    { code: 'ASSISTANT_TEACHER', label: 'ครูผู้ช่วย' },
+  ] as const;
   const { level } = await searchParams;
-  const activeLevel = level === 'BASIC' ? 'BASIC' : 'EARLY_CHILDHOOD';
-  const activeLabel = activeLevel === 'BASIC' ? 'พื้นฐาน' : 'ปฐมวัย';
+  const activeLevel =
+    LEVEL_TABS.some((t) => t.code === level) ? level! : 'EARLY_CHILDHOOD';
+  const activeLabel = LEVEL_TABS.find((t) => t.code === activeLevel)?.label ?? 'ปฐมวัย';
 
   const filtered = readinessData.filter((d) => d.levelCode === activeLevel);
 
@@ -120,31 +126,24 @@ export default async function ReadinessReportPage({
 
       {/* Tabs */}
       <div className="mb-6 flex items-center gap-2">
-        <Link
-          href={`/reports/readiness?level=EARLY_CHILDHOOD`}
-          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-            activeLevel === 'EARLY_CHILDHOOD'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-secondary text-secondary-foreground hover:bg-accent'
-          }`}
-        >
-          ปฐมวัย
-        </Link>
-        <Link
-          href={`/reports/readiness?level=BASIC`}
-          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-            activeLevel === 'BASIC'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-secondary text-secondary-foreground hover:bg-accent'
-          }`}
-        >
-          พื้นฐาน
-        </Link>
+        {LEVEL_TABS.map((tab) => (
+          <Link
+            key={tab.code}
+            href={`/reports/readiness?level=${tab.code}`}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              activeLevel === tab.code
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-secondary-foreground hover:bg-accent'
+            }`}
+          >
+            {tab.label}
+          </Link>
+        ))}
       </div>
 
       {/* Overall KPI */}
       <div className={`mb-6 rounded-lg border p-6 ${
-        activeLevel === 'BASIC' ? 'bg-purple-50 border-purple-200' : 'bg-blue-50 border-blue-200'
+        activeLevel === 'BASIC' ? 'bg-purple-50 border-purple-200' : activeLevel === 'ASSISTANT_TEACHER' ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'
       }`}>
         <div className="flex items-center justify-between">
           <div>
@@ -180,12 +179,12 @@ export default async function ReadinessReportPage({
                 <span className="text-sm font-medium">{item.percentage}%</span>
               </div>
               <div className={`h-4 w-full overflow-hidden rounded-full ${
-                activeLevel === 'BASIC' ? 'bg-purple-100' : 'bg-blue-100'
+                activeLevel === 'BASIC' ? 'bg-purple-100' : activeLevel === 'ASSISTANT_TEACHER' ? 'bg-amber-100' : 'bg-blue-100'
               }`}>
                 <div
                   className={`h-full transition-all ${
                     item.percentage >= 76
-                      ? activeLevel === 'BASIC' ? 'bg-purple-400' : 'bg-blue-400'
+                      ? activeLevel === 'BASIC' ? 'bg-purple-400' : activeLevel === 'ASSISTANT_TEACHER' ? 'bg-amber-400' : 'bg-blue-400'
                       : item.percentage >= 51
                         ? 'bg-yellow-300'
                         : 'bg-pink-300'
@@ -243,7 +242,7 @@ export default async function ReadinessReportPage({
                     <span
                       className={`font-medium ${
                         item.percentage >= 76
-                          ? activeLevel === 'BASIC' ? 'text-purple-600' : 'text-blue-600'
+                          ? activeLevel === 'BASIC' ? 'text-purple-600' : activeLevel === 'ASSISTANT_TEACHER' ? 'text-amber-600' : 'text-blue-600'
                           : item.percentage >= 51
                             ? 'text-yellow-600'
                             : 'text-pink-500'
