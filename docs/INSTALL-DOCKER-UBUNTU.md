@@ -82,7 +82,7 @@ nano .env   # หรือ vi
 | `NEXTAUTH_SECRET` | สร้างด้วย `openssl rand -base64 32` |
 | `NEXTAUTH_URL` | URL จริงของแอป (เช่น https://your-domain.com) |
 | `GEMINI_API_KEY` | ถ้าใช้ฟีเจอร์ AI เชื่อมโยงตัวชี้วัด |
-| `UPLOAD_DIR` | ตั้งเป็น `/app/public/uploads` ใน Docker เพื่อให้รูปอัปโหลดใหม่บันทึกและโหลดได้ถูก path |
+| `UPLOAD_DIR` | ตั้งเป็น `/app/public/uploads` ใน Docker เพื่อให้รูปอัปโหลดใหม่บันทึกและโหลดได้ (Next standalone ไม่ serve ไฟล์ที่เพิ่มใน public ตอน runtime — เราใช้ rewrite ไปที่ API serve ไฟล์จากโฟลเดอร์นี้แทน) |
 
 ---
 
@@ -166,3 +166,34 @@ docker compose ps
 - **Prisma:** ทำงานกับ MariaDB 11.4 ได้ ใช้ `authPlugin=mysql_native_password` ตามที่ Dataserver รองรับ
 - **SSL:** ถ้า MariaDB เปิด SSL ให้เพิ่มพารามิเตอร์ใน `DATABASE_URL` ตามที่ Prisma รองรับ
 - **Reverse proxy:** ถ้าใช้ Nginx Proxy Manager หรือ Caddy ให้ตั้ง **Forward Port = 9954** (ไม่ใช่ 9950) ไปที่ `http://192.168.1.4:9954` หรือ `http://127.0.0.1:9954`
+
+---
+
+## 10. แก้ปัญหา: อัปโหลดสำเร็จแต่รูปโหลดไม่ขึ้น (404)
+
+ถ้ารูปที่อัปโหลดใหม่โหลดไม่ได้ (404) ให้ตรวจตามนี้:
+
+1. **อัปเดตโค้ดและ build ใหม่** (ต้องมี rewrite + API serve-upload)
+   ```bash
+   cd /DATA/AppData/www/ssar
+   git pull
+   docker compose build --no-cache
+   docker compose up -d
+   ```
+
+2. **ตั้ง UPLOAD_DIR ใน .env**
+   ```bash
+   UPLOAD_DIR=/app/public/uploads
+   ```
+   จากนั้น `docker compose up -d` อีกครั้ง
+
+3. **ตรวจว่า rewrite ทำงาน** — เปิดในเบราว์เซอร์:
+   `https://sar.cnppai.com/api/serve-upload/evidence/8/images/7476028b-a9b2-4eec-af7e-233b0ea484e0.png`
+   - ถ้าได้ 200 = route ทำงาน (ถ้ายัง 404 อาจเป็นเพราะไฟล์ไม่มีบนดิสก์)
+   - ถ้าได้ 404 หน้า API = แปลว่า rewrite อาจไม่ส่ง request มาที่ route หรือโค้ดยังไม่ deploy
+
+4. **ตรวจว่าไฟล์อยู่บนโฟลเดอร์**
+   ```bash
+   ls -la /DATA/AppData/www/ssar/public/uploads/evidence/8/images/
+   ```
+   ควรเห็นไฟล์ .png หลังอัปโหลด ถ้าไม่มี แปลว่าการเขียนไฟล์อาจผิด path หรือสิทธิ์
