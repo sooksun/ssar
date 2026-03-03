@@ -21,11 +21,15 @@ import { revalidatePath } from 'next/cache';
 import { ZodError } from 'zod';
 
 type LessonPlanUpdateData = {
+  code?: string | null;
   title?: string;
+  planType?: string | null;
+  grade?: string | null;
+  room?: string | null;
+  subject?: string | null;
   description?: string | null;
   teacherName?: string;
-  subject?: string | null;
-  grade?: string | null;
+  semester?: number | null;
   planDate?: Date | null;
   submittedAt?: Date | null;
   reflection?: string | null;
@@ -58,18 +62,22 @@ export async function createLessonPlan(formData: FormData) {
   try {
     const rawData = {
       schoolId: formData.get('schoolId') as string,
+      code: (formData.get('code') as string) || null,
       academicYear: formData.get('academicYear')
         ? (formData.get('academicYear') as string)
         : thaiAcademicYear().toString(),
       fiscalYear: formData.get('fiscalYear')
         ? (formData.get('fiscalYear') as string)
         : thaiFiscalYear().toString(),
+      semester: formData.get('semester') ? (formData.get('semester') as string) : null,
       title: formData.get('title') as string,
+      planType: (formData.get('planType') as string) || null,
+      grade: (formData.get('grade') as string) || null,
+      room: (formData.get('room') as string) || null,
+      subject: (formData.get('subject') as string) || null,
       description: formData.get('description') as string | null,
       teacherName: formData.get('teacherName') as string,
       teacherId: formData.get('teacherId') as string | null,
-      subject: formData.get('subject') as string | null,
-      grade: formData.get('grade') as string | null,
       planDate: formData.get('planDate') as string | null,
       submittedAt: formData.get('submittedAt') as string | null,
       reflection: formData.get('reflection') as string | null,
@@ -91,14 +99,18 @@ export async function createLessonPlan(formData: FormData) {
     const lessonPlan = await prisma.lessonPlan.create({
       data: {
         schoolId,
+        code: validated.code || null,
         academicYear: validated.academicYear,
         fiscalYear: validated.fiscalYear,
+        semester: validated.semester ?? null,
         title: validated.title,
+        planType: validated.planType || null,
+        grade: validated.grade || null,
+        room: validated.room || null,
+        subject: validated.subject || null,
         description: validated.description || null,
         teacherName: validated.teacherName,
         teacherId: validated.teacherId ? BigInt(validated.teacherId) : null,
-        subject: validated.subject || null,
-        grade: validated.grade || null,
         planDate: validated.planDate ? new Date(validated.planDate) : null,
         submittedAt: validated.submittedAt ? new Date(validated.submittedAt) : null,
         reflection: validated.reflection || null,
@@ -142,11 +154,15 @@ export async function updateLessonPlan(formData: FormData) {
   try {
     const raw = {
       id: formData.get('id') as string,
+      code: formData.get('code') as string | null,
       title: formData.get('title') as string | null,
+      planType: formData.get('planType') as string | null,
+      grade: formData.get('grade') as string | null,
+      room: formData.get('room') as string | null,
+      subject: formData.get('subject') as string | null,
       description: formData.get('description') as string | null,
       teacherName: formData.get('teacherName') as string | null,
-      subject: formData.get('subject') as string | null,
-      grade: formData.get('grade') as string | null,
+      semester: formData.get('semester') as string | null,
       planDate: formData.get('planDate') as string | null,
       submittedAt: formData.get('submittedAt') as string | null,
       reflection: formData.get('reflection') as string | null,
@@ -170,11 +186,15 @@ export async function updateLessonPlan(formData: FormData) {
     }
 
     const updateData: LessonPlanUpdateData = {};
+    if (validated.code !== undefined) updateData.code = validated.code;
     if (validated.title) updateData.title = validated.title;
+    if (validated.planType !== undefined) updateData.planType = validated.planType;
+    if (validated.grade !== undefined) updateData.grade = validated.grade;
+    if (validated.room !== undefined) updateData.room = validated.room;
+    if (validated.subject !== undefined) updateData.subject = validated.subject;
     if (validated.description !== undefined) updateData.description = validated.description;
     if (validated.teacherName) updateData.teacherName = validated.teacherName;
-    if (validated.subject !== undefined) updateData.subject = validated.subject;
-    if (validated.grade !== undefined) updateData.grade = validated.grade;
+    if (validated.semester !== undefined) updateData.semester = validated.semester ?? null;
     if (validated.planDate) updateData.planDate = new Date(validated.planDate);
     if (validated.submittedAt) updateData.submittedAt = new Date(validated.submittedAt);
     if (validated.reflection !== undefined) updateData.reflection = validated.reflection;

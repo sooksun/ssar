@@ -45,6 +45,12 @@ export default async function LessonPlanDetailPage({
         <div className="rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-xl font-semibold">ข้อมูลพื้นฐาน</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {lessonPlan.code && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">รหัสแผนการสอน</label>
+                <p className="mt-1">{lessonPlan.code}</p>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium text-muted-foreground">โรงเรียน</label>
               <p className="mt-1">{lessonPlan.school.name}</p>
@@ -53,8 +59,26 @@ export default async function LessonPlanDetailPage({
               <label className="text-sm font-medium text-muted-foreground">ปีการศึกษา</label>
               <p className="mt-1">{lessonPlan.academicYear}</p>
             </div>
+            {lessonPlan.semester != null && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">ภาคเรียนที่</label>
+                <p className="mt-1">{lessonPlan.semester}</p>
+              </div>
+            )}
+            {lessonPlan.planType && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">ประเภทแผนการสอน</label>
+                <p className="mt-1">{lessonPlan.planType}</p>
+              </div>
+            )}
+            {lessonPlan.room && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">ห้อง</label>
+                <p className="mt-1">{lessonPlan.room}</p>
+              </div>
+            )}
             <div>
-              <label className="text-sm font-medium text-muted-foreground">ครูผู้เขียน</label>
+              <label className="text-sm font-medium text-muted-foreground">ครูผู้สอน</label>
               <p className="mt-1">{lessonPlan.teacherName}</p>
             </div>
             {lessonPlan.subject && (

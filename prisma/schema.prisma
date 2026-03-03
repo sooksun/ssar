@@ -638,17 +638,21 @@ model LessonPlan {
   id           BigInt           @id @default(autoincrement())
   school       School           @relation(fields: [schoolId], references: [sc_id])
   schoolId     BigInt
+  code         String?          // รหัสแผนการสอน
   academicYear Int // ปีการศึกษา (พ.ค.→เม.ย.)
   fiscalYear   Int // ปีงบประมาณ (ต.ค.→ก.ย.)
-  title        String // ชื่อแผน
-  description  String? // รายละเอียดแผน
-  teacherName  String // ชื่อครูผู้เขียนแผน
-  teacherId    BigInt? // ID ของครู (ถ้ามีในระบบ)
-  subject      String? // วิชา
-  grade        String? // ระดับชั้น
-  planDate     DateTime? // วันที่ใช้แผน
-  submittedAt  DateTime? // วันที่ส่งแผน
-  reflection   String? // บันทึกหลังแผน (reflection)
+  semester     Int?            // ภาคเรียนที่ (1 หรือ 2)
+  title        String // ชื่อแผนการสอน
+  planType     String?         // ประเภทแผน: แผนรายวิชา, แผนบูรณาการ
+  grade        String?         // ชั้น (อนุบาล 2 - ม.3)
+  room         String?         // ห้อง
+  subject      String?         // วิชา (ไทย คณิต วิทย์ อังกฤษ PBL อื่น ๆ)
+  description  String?        // รายละเอียด
+  teacherName  String         // ชื่อครูผู้สอน
+  teacherId    BigInt?        // ID ของครู (ถ้ามีในระบบ)
+  planDate     DateTime?      // วันที่ใช้แผน
+  submittedAt  DateTime?      // วันที่ส่งแผน
+  reflection   String?        // บันทึกหลังแผน (reflection)
   status       LessonPlanStatus @default(DRAFT)
   del          Boolean          @default(false)
   createdBy    BigInt?

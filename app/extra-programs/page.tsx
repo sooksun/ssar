@@ -5,7 +5,19 @@ import Link from 'next/link';
 import { BackLink } from '@/components/ui/back-link';
 
 // ข้อมูลโปรแกรมเสริม (สามารถดึงจาก database หรือ config file ได้ในอนาคต)
-const extraPrograms = [
+type ExtraProgramCard = {
+  title: string;
+  description: string;
+  href: string;
+  gradient: string;
+  border: string;
+  text: string;
+  iconSrc: string;
+  iconAlt: string;
+  comingSoon?: boolean;
+  submenu?: { label: string; href: string }[];
+};
+const extraPrograms: ExtraProgramCard[] = [
   {
     title: 'บันทึกทะเบียนคุมสื่อการสอน',
     description: 'ระบบบันทึกและจัดการทะเบียนคุมสื่อการสอน',
@@ -25,6 +37,10 @@ const extraPrograms = [
     text: 'text-sky-700',
     iconSrc: '/icon_plan.png',
     iconAlt: 'ไอคอนแผนการสอน',
+    submenu: [
+      { label: 'รายการแผนการสอน', href: '/lesson-plans' },
+      { label: 'เพิ่มแผนการสอน', href: '/lesson-plans/new' },
+    ],
   },
   {
     title: 'การประเมิน PA',
@@ -96,6 +112,19 @@ export default async function ExtraProgramsPage() {
                       </span>
                     </div>
                   )}
+                  {card.submenu && card.submenu.length > 0 && (
+                    <div className="relative z-10 mt-4 flex flex-wrap gap-2">
+                      {card.submenu.map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className="rounded-md border border-sky-300 bg-white/80 px-3 py-1.5 text-xs font-medium text-sky-700 shadow-sm hover:bg-sky-50"
+                        >
+                          {item.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <Image
                   src={card.iconSrc}
@@ -114,6 +143,19 @@ export default async function ExtraProgramsPage() {
                   key={card.href}
                   className={`relative rounded-xl border p-6 shadow-sm bg-gradient-to-br ${card.gradient} ${card.border} opacity-75 cursor-not-allowed`}
                 >
+                  {cardContent}
+                </div>
+              );
+            }
+
+            // การ์ดที่มีเมนูย่อย: คลิกที่การ์ดไปหน้ารายการ เมนูย่อยเป็นลิงก์แยก
+            if (card.submenu && card.submenu.length > 0) {
+              return (
+                <div
+                  key={card.href}
+                  className={`relative rounded-xl border p-6 shadow-sm transition-shadow hover:shadow-md bg-gradient-to-br ${card.gradient} ${card.border}`}
+                >
+                  <Link href={card.href} className="absolute inset-0 z-0" aria-hidden="true" />
                   {cardContent}
                 </div>
               );

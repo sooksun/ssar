@@ -2,17 +2,21 @@ import { z } from 'zod';
 
 export const createLessonPlanSchema = z.object({
   schoolId: z.string().min(1, 'กรุณาเลือกโรงเรียน'),
+  code: z.string().optional().nullable(), // รหัสแผนการสอน
   academicYear: z.coerce.number().int().positive(),
   fiscalYear: z.coerce.number().int().positive(),
+  semester: z.coerce.number().int().min(1).max(2).optional().nullable(), // ภาคเรียนที่ 1 หรือ 2
   title: z.string().min(1, 'กรุณากรอกชื่อแผน'),
-  description: z.string().optional().nullable(),
-  teacherName: z.string().min(1, 'กรุณากรอกชื่อครูผู้เขียนแผน'),
-  teacherId: z.string().optional().nullable(),
-  subject: z.string().optional().nullable(),
+  planType: z.string().optional().nullable(), // แผนรายวิชา, แผนบูรณาการ
   grade: z.string().optional().nullable(),
-  planDate: z.string().optional().nullable(), // ISO date string
-  submittedAt: z.string().optional().nullable(), // ISO date string
-  reflection: z.string().optional().nullable(), // บันทึกหลังแผน
+  room: z.string().optional().nullable(),
+  subject: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  teacherName: z.string().min(1, 'กรุณากรอกชื่อครูผู้สอน'),
+  teacherId: z.string().optional().nullable(),
+  planDate: z.string().optional().nullable(),
+  submittedAt: z.string().optional().nullable(),
+  reflection: z.string().optional().nullable(),
   status: z.enum(['DRAFT', 'SUBMITTED', 'REVIEWED', 'APPROVED', 'REJECTED']).default('DRAFT'),
 });
 
