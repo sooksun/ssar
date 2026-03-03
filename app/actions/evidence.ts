@@ -26,6 +26,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
+import { getUploadBaseDir } from '@/lib/uploads-path';
 import {
   describeAllowedFileTypes,
   isAllowedFileType,
@@ -283,9 +284,7 @@ export async function addEvidenceFile(formData: FormData) {
       const isImageUpload = imageFiles.length > 0;
       const folderName = isImageUpload ? 'images' : 'videos';
       const uploadDir = path.join(
-        process.cwd(),
-        'public',
-        'uploads',
+        getUploadBaseDir(),
         'evidence',
         evId.toString(),
         folderName

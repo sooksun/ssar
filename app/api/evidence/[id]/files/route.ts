@@ -7,6 +7,7 @@ import { AUDIT_ACTIONS, logAction } from '@/lib/audit';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { mkdir, writeFile } from 'fs/promises';
+import { getUploadBaseDir } from '@/lib/uploads-path';
 import {
   isImageFile,
   isVideoFile,
@@ -209,9 +210,7 @@ export async function POST(
       }
 
       const uploadDir = path.join(
-        process.cwd(),
-        'public',
-        'uploads',
+        getUploadBaseDir(),
         'evidence',
         evId.toString(),
         folderName

@@ -82,6 +82,7 @@ nano .env   # หรือ vi
 | `NEXTAUTH_SECRET` | สร้างด้วย `openssl rand -base64 32` |
 | `NEXTAUTH_URL` | URL จริงของแอป (เช่น https://your-domain.com) |
 | `GEMINI_API_KEY` | ถ้าใช้ฟีเจอร์ AI เชื่อมโยงตัวชี้วัด |
+| `UPLOAD_DIR` | ตั้งเป็น `/app/public/uploads` ใน Docker เพื่อให้รูปอัปโหลดใหม่บันทึกและโหลดได้ถูก path |
 
 ---
 
