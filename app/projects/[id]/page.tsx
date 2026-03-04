@@ -2,7 +2,6 @@ import { auth } from '@/lib/auth/nextauth';
 import { redirect, notFound } from 'next/navigation';
 import { getProjectById } from '@/app/actions/project';
 import { BackLink } from '@/components/ui/back-link';
-import Link from 'next/link';
 import { ProjectFilesSection } from './project-files-section';
 
 export default async function ProjectDetailPage({

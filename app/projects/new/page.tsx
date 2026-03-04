@@ -15,7 +15,6 @@ export default async function NewProjectPage({
   if (!session) redirect('/login');
 
   const user = session.user;
-  const roles = user.roles ?? [];
   const schoolIds = await getUserSchools(user.id);
 
   const schoolsRaw = await prisma.school.findMany({
