@@ -1,7 +1,8 @@
 -- เพิ่มคอลัมน์ userId ใน pateacherdocument เพื่อผูกกับครู (ครู 1 คน บันทึก 1 ครั้งต่อปีการศึกษา ต่อโรงเรียน)
 -- รันเมื่อมีตาราง pateacherdocument อยู่แล้ว (จาก Prisma หรือ PA_TEACHER_DOCUMENTS_TABLE.sql)
+-- ถ้าเจอ ERROR 1060 Duplicate column name 'userId' = ตารางมี userId อยู่แล้ว ไม่ต้องรันสคริปต์นี้
 
--- 1. เพิ่มคอลัมน์ userId (nullable ก่อน)
+-- 1. เพิ่มคอลัมน์ userId (nullable ก่อน) — ข้ามขั้นนี้ถ้ามีคอลัมน์แล้ว
 ALTER TABLE `pateacherdocument` ADD COLUMN `userId` BIGINT NULL AFTER `schoolId`;
 
 -- 2. เติม userId จาก uploadedBy สำหรับแถวที่มี uploadedBy (ถ้าไม่มีข้อมูลเก่าข้ามได้)

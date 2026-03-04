@@ -10,7 +10,7 @@
 
 ### 1. อัปเดตฐานข้อมูล (ต้องทำก่อนหรือพร้อม deploy)
 
-ถ้าตาราง `pateacherdocument` **มีอยู่แล้ว** (สร้างจากเวอร์ชันเก่า) ต้องรัน SQL เพิ่มคอลัมน์ `userId`:
+ถ้าตาราง `pateacherdocument` **มีอยู่แล้วแต่ยังไม่มีคอลัมน์ `userId`** ต้องรัน SQL ด้านล่าง (ถ้าเจอ *Duplicate column name 'userId'* = มีคอลัมน์แล้ว ไม่ต้องรัน):
 
 ```bash
 # แทน YOUR_DB_USER และ YOUR_DB_NAME ด้วย user / ชื่อฐานข้อมูลจริง
