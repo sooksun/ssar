@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth/nextauth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { thaiAcademicYear, thaiFiscalYear } from '@/lib/evidence';
+import { getNextProjectCode } from '@/app/actions/project';
 import ProjectForm from './project-form';
 import { BackLink } from '@/components/ui/back-link';
 import { getUserSchools } from '@/lib/auth/scoping';
@@ -40,6 +41,8 @@ export default async function NewProjectPage({
 
   const currentAcademicYear = thaiAcademicYear();
   const currentFiscalYear = thaiFiscalYear();
+
+  const defaultProjectCode = await getNextProjectCode(BigInt(defaultSchoolId), currentAcademicYear);
 
   // นโยบาย สพฐ รายปี (ปีงบประมาณปัจจุบัน)
   const policies = await prisma.oBECPolicy.findMany({
@@ -101,6 +104,7 @@ export default async function NewProjectPage({
         currentAcademicYear={currentAcademicYear}
         currentFiscalYear={currentFiscalYear}
         defaultSchoolId={defaultSchoolId}
+        defaultProjectCode={defaultProjectCode}
       />
       <BackLink href="/projects" label="ย้อนกลับรายการโครงการ" className="mt-6" />
     </div>

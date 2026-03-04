@@ -63,7 +63,7 @@ export function ProjectFilesSection({
     <div className="space-y-8">
       {/* รายงานโครงการ */}
       <div className="rounded-lg border p-4">
-        <h3 className="font-medium mb-2">รายงานโครงการ (PDF)</h3>
+        <h3 className="font-medium mb-2">สำเนาโครงการ</h3>
         {reportFile ? (
           <div className="flex flex-wrap items-center gap-4">
             <a

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createProject } from '@/app/actions/project';
+import { createProject, getNextProjectCode } from '@/app/actions/project';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/lib/toast';
 import { getAcademicYearOptions, getFiscalYearOptions } from '@/lib/year-options';
@@ -41,6 +41,7 @@ interface ProjectFormProps {
   currentAcademicYear: number;
   currentFiscalYear: number;
   defaultSchoolId: string;
+  defaultProjectCode: string;
 }
 
 export default function ProjectForm({
@@ -51,13 +52,14 @@ export default function ProjectForm({
   currentAcademicYear,
   currentFiscalYear,
   defaultSchoolId,
+  defaultProjectCode,
 }: ProjectFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState('');
 
   const [schoolId, setSchoolId] = useState(defaultSchoolId);
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(defaultProjectCode);
   const [academicYear, setAcademicYear] = useState(currentAcademicYear);
   const [fiscalYear, setFiscalYear] = useState(currentFiscalYear);
   const [responsibleUserId, setResponsibleUserId] = useState('');
@@ -84,6 +86,11 @@ export default function ProjectForm({
       })
       .catch(() => setSchoolUsers([]));
   }, [schoolId]);
+
+  // อัปเดตรหัสโครงการอัตโนมัติเมื่อเปลี่ยนโรงเรียนหรือปีการศึกษา
+  useEffect(() => {
+    getNextProjectCode(schoolId, academicYear).then(setCode);
+  }, [schoolId, academicYear]);
 
   const academicYearOptions = getAcademicYearOptions(2565, currentAcademicYear);
   const fiscalYearOptions = getFiscalYearOptions(2565, currentFiscalYear);
@@ -173,7 +180,7 @@ export default function ProjectForm({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">รหัสโครงการ *</label>
+          <label className="mb-1 block text-sm font-medium">รหัสโครงการ * (ระบบกำหนดอัตโนมัติ)</label>
           <input
             type="text"
             value={code}
@@ -299,7 +306,7 @@ export default function ProjectForm({
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <label className="block text-sm font-medium">รายงานโครงการ (PDF)</label>
+            <label className="block text-sm font-medium">สำเนาโครงการ</label>
             <input
               type="file"
               accept=".pdf,application/pdf"

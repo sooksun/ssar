@@ -8,6 +8,41 @@ import { createProjectSchema } from '@/lib/validations/project';
 import type { ProjectStatus } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 
+const PROJECT_CODE_PREFIX = 'PJ-';
+
+/**
+ * สร้างรหัสโครงการถัดไปสำหรับโรงเรียนและปีการศึกษา (รูปแบบ PJ-2568-001)
+ * รับ schoolId เป็น string เพื่อให้เรียกจาก client (server action) ได้
+ */
+export async function getNextProjectCode(
+  schoolId: string | bigint,
+  academicYear: number
+): Promise<string> {
+  const sid = typeof schoolId === 'string' ? BigInt(schoolId) : schoolId;
+  const prefix = `${PROJECT_CODE_PREFIX}${academicYear}-`;
+  const projects = await prisma.project.findMany({
+    where: {
+      schoolId: sid,
+      academicYear,
+      del: false,
+      code: { startsWith: prefix },
+    },
+    select: { code: true },
+  });
+
+  let maxSeq = 0;
+  const regex = new RegExp(`^${PROJECT_CODE_PREFIX}${academicYear}-(\\d+)$`);
+  for (const p of projects) {
+    const m = p.code.trim().match(regex);
+    if (m) {
+      const seq = parseInt(m[1], 10);
+      if (!Number.isNaN(seq) && seq > maxSeq) maxSeq = seq;
+    }
+  }
+  const nextSeq = maxSeq + 1;
+  return `${PROJECT_CODE_PREFIX}${academicYear}-${String(nextSeq).padStart(3, '0')}`;
+}
+
 /**
  * รายการโครงการ (ตาม school, ปีการศึกษา ที่ user มีสิทธิ์)
  */
@@ -112,6 +147,9 @@ export async function createProject(formData: FormData) {
       description: (formData.get('description') as string) || null,
       status: (formData.get('status') as string) || 'DRAFT',
     };
+    if (!raw.code) {
+      raw.code = await getNextProjectCode(BigInt(raw.schoolId), parseInt(raw.academicYear, 10));
+    }
     const validated = createProjectSchema.parse(raw);
 
     const hasAccess = await canAccessSchool(BigInt(session.user.id), BigInt(validated.schoolId));
