@@ -43,6 +43,20 @@ const extraPrograms: ExtraProgramCard[] = [
     ],
   },
   {
+    title: 'บันทึกโครงการ',
+    description: 'รายงานโครงการ สรุปการดำเนินโครงการ (PDF + ลายเซ็นอิเล็กทรอนิกส์) อ้างอิงนโยบาย สพฐ และตัวชี้วัด QA・PA',
+    href: '/projects',
+    gradient: 'from-amber-50 via-white to-white',
+    border: 'border-amber-200',
+    text: 'text-amber-700',
+    iconSrc: '/icon_plan.png',
+    iconAlt: 'ไอคอนโครงการ',
+    submenu: [
+      { label: 'รายการโครงการ', href: '/projects' },
+      { label: 'เพิ่มโครงการ', href: '/projects/new' },
+    ],
+  },
+  {
     title: 'การประเมิน PA',
     description: 'การประเมินผลการพัฒนางานตามข้อตกลง (PA)',
     href: '/pa',

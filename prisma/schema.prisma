@@ -55,6 +55,8 @@ model School {
   paSummaries          PASummary[]
   paTeacherDocuments   PATeacherDocument[]
   developmentSummaries DevelopmentSummary[]
+  projects             Project[]
+  projectFiles         ProjectFile[]
 
   @@index([areaId])
   @@map("school")
@@ -88,6 +90,7 @@ model User {
   evidenceFiles EvidenceFile[]   @relation("Uploader")
   reviews       EvidenceReview[] @relation("Reviewer")
   audits        AuditLog[]       @relation("Actor")
+  projectsResponsible Project[]  @relation("ProjectResponsible")
 
   @@map("user")
 }
@@ -168,6 +171,7 @@ model QAIndicator {
   indicatorScales          IndicatorScale[]
   teachingMedia            TeachingMedia[]
   evidenceMappings         EvidenceIndicatorMapping[]
+  projects                 Project[]
 
   @@unique([standardId, code])
   @@map("qaindicator")
@@ -759,6 +763,7 @@ model PAIndicator {
   evidenceMappings PAEvidenceMapping[]
   agreementItems   PAAgreementItem[]
   scales           PAIndicatorScale[]
+  projects         Project[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -979,4 +984,96 @@ model PATeacherDocument {
   @@unique([schoolId, academicYear, documentType])
   @@index([schoolId, academicYear])
   @@map("pateacherdocument")
+}
+
+// =============================================================================
+// โครงการ (โปรแกรมเสริม) — รายงานโครงการ สรุปการดำเนินโครงการ อ้างอิงนโยบาย สพฐ / ตัวชี้วัด QA・PA
+// =============================================================================
+
+/// นโยบาย สพฐ รายปี (สำหรับอ้างอิงในโครงการ)
+model OBECPolicy {
+  id           BigInt   @id @default(autoincrement())
+  fiscalYear   Int      // ปีงบประมาณ (เช่น 2567)
+  code         String   // รหัส/เลขข้อ นโยบาย เช่น "นโยบายที่ 1"
+  nameTh       String   // ชื่อนโยบาย
+  descriptionTh String? @db.Text
+  sortNo       Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  projects     Project[]
+
+  @@unique([fiscalYear, code])
+  @@index([fiscalYear])
+  @@map("obecpolicy")
+}
+
+/// โครงการ — รายละเอียดการบันทึกโครงการ
+model Project {
+  id                 BigInt        @id @default(autoincrement())
+  school             School        @relation(fields: [schoolId], references: [sc_id])
+  schoolId           BigInt       // รหัสโรงเรียน (sc_id)
+  code               String       // รหัสโครงการ
+  academicYear       Int          // ปีการศึกษา (พ.ค.→เม.ย.)
+  fiscalYear         Int          // ปีงบประมาณ (ต.ค.→ก.ย.)
+  responsibleUser    User?        @relation("ProjectResponsible", fields: [responsibleUserId], references: [id])
+  responsibleUserId  BigInt?      // รหัสผู้รับผิดชอบโครงการ (user id)
+  obePolicy          OBECPolicy?  @relation(fields: [obePolicyId], references: [id])
+  obePolicyId        BigInt?      // สอดคล้องกับ นโยบาย สพฐ ข้อใด
+  qaIndicator        QAIndicator? @relation(fields: [qaIndicatorId], references: [id])
+  qaIndicatorId      BigInt?      // สอดคล้องกับ ตัวชี้วัดการประกันคุณภาพ ใด
+  paIndicator        PAIndicator? @relation(fields: [paIndicatorId], references: [id])
+  paIndicatorId      BigInt?      // สอดคล้องกับ ตัวชี้วัด PA ใด
+  title              String       // ชื่อโครงการ
+  description        String?      @db.Text
+  status             ProjectStatus @default(DRAFT)
+  del                Boolean      @default(false)
+  createdBy          BigInt?
+  updatedBy          BigInt?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  files              ProjectFile[]
+
+  @@unique([schoolId, code, academicYear])
+  @@index([schoolId, academicYear])
+  @@index([schoolId, fiscalYear])
+  @@index([responsibleUserId])
+  @@map("project")
+}
+
+enum ProjectStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+/// ไฟล์โครงการ — รายงานโครงการ / สรุปการดำเนินโครงการ (PDF พร้อมลายเซ็นอิเล็กทรอนิกส์)
+model ProjectFile {
+  id               BigInt           @id @default(autoincrement())
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId        BigInt
+  school           School           @relation(fields: [schoolId], references: [sc_id])
+  schoolId         BigInt
+  fileType         ProjectFileType  // PROJECT_REPORT | EXECUTION_SUMMARY
+  fileName         String
+  mimeType         String?         // application/pdf
+  fileSize         Int?
+  storagePath      String?         // path ใน uploads
+  externalUrl      String?
+  signedAt         DateTime?       // วันที่ลงลายเซ็นอิเล็กทรอนิกส์
+  signedBy         BigInt?         // user id ผู้ลงลายเซ็น
+  signatureMetadata Json?          // ข้อมูลลายเซ็น (เช่น hash, method)
+  uploadedBy       BigInt?
+  uploadedAt       DateTime        @default(now())
+  del              Boolean         @default(false)
+
+  @@index([projectId])
+  @@index([projectId, fileType])
+  @@index([schoolId])
+  @@map("projectfile")
+}
+
+enum ProjectFileType {
+  PROJECT_REPORT     // รายงานโครงการ
+  EXECUTION_SUMMARY  // สรุปการดำเนินโครงการ
 }
