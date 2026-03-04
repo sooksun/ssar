@@ -30,6 +30,7 @@ export default function LessonPlanForm({
   currentFiscalYear,
   currentUserId: _currentUserId,
   defaultSchoolId,
+  defaultTeacherName = '',
 }: LessonPlanFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
