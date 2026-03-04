@@ -12,12 +12,15 @@
 ถ้าตาราง `pateacherdocument` **มีอยู่แล้ว** (สร้างจากเวอร์ชันเก่า) ต้องรัน SQL เพิ่มคอลัมน์ `userId`:
 
 ```bash
-mysql -u USER -p DATABASE < docs/PA_TEACHER_DOCUMENTS_ADD_USERID.sql
+# แทน YOUR_DB_USER และ YOUR_DB_NAME ด้วย user / ชื่อฐานข้อมูลจริง
+# ตัวอย่าง: user=casaos, password=casaos, database=qa_external (ใส่รหัสผ่านเมื่อคำสั่งถาม)
+mysql -h 127.0.0.1 -u YOUR_DB_USER -p YOUR_DB_NAME < docs/PA_TEACHER_DOCUMENTS_ADD_USERID.sql
 ```
 
-หรือเปิด `docs/PA_TEACHER_DOCUMENTS_ADD_USERID.sql` ใน phpMyAdmin แล้ว Execute
+- ถ้าเจอ `Can't connect to local server through socket`: MySQL อาจรันใน Docker หรือ remote ให้ใช้ `-h 127.0.0.1` (หรือ IP ของ MySQL) ถ้าเปิดพอร์ต 3306 ไว้
+- หรือเปิด `docs/PA_TEACHER_DOCUMENTS_ADD_USERID.sql` ใน phpMyAdmin แล้ว Execute
 
-- ถ้าไม่รัน: แอปจะ error ตอนบันทึก/โหลด PA ครู (ตารางไม่มีคอลัมน์ `userId`)
+ถ้าไม่รัน: แอปจะ error ตอนบันทึก/โหลด PA ครู (ตารางไม่มีคอลัมน์ `userId`)
 
 ### 2. Deploy โค้ด
 
@@ -33,19 +36,19 @@ docker compose up -d
 ```bash
 cd /DATA/AppData/www/ssar   # หรือ path โปรเจกต์บนเซิร์ฟเวอร์
 
-# 1. อัปเดต DB (ถ้าตาราง pateacherdocument มีอยู่แล้วแต่ไม่มีคอลัมน์ userId)
-mysql -u USER -p DATABASE < docs/PA_TEACHER_DOCUMENTS_ADD_USERID.sql
-
-# ถ้าตาราง project / projectfile / pateacherdocument ยังไม่มี ให้รัน:
-# mysql -u USER -p DATABASE < docs/PROJECT_ADD_TABLES.sql
-# และสร้างตาราง pateacherdocument ตาม docs/PA_TEACHER_DOCUMENTS_TABLE.sql
+# 1. อัปเดต DB — ใช้ user และชื่อฐานข้อมูลจริง (อย่าใส่ < > ในคำสั่ง จะ error)
+#    ตัวอย่าง user=casaos, database=qa_external (ใส่รหัสผ่านเมื่อถาม):
+mysql -h 127.0.0.1 -u casaos -p qa_external < docs/PA_TEACHER_DOCUMENTS_ADD_USERID.sql
+#    ถ้าตาราง project / projectfile / pateacherdocument ยังไม่มี:
+#    mysql -h 127.0.0.1 -u casaos -p qa_external < docs/PROJECT_ADD_TABLES.sql
+#    และสร้างตาราง pateacherdocument ตาม docs/PA_TEACHER_DOCUMENTS_TABLE.sql
 
 # 2. ดึงโค้ด + build + ขึ้นแอป
 git pull
 docker compose build
 docker compose up -d
 
-# 3. (ถ้าติดตั้ง tsx ใน container) ตรวจสอบตารางครบหรือไม่
+# 3. ตรวจสอบตารางครบหรือไม่ (รันบนโฮสต์ — ต้องมี DATABASE_URL ใน .env หรือ export)
 npm run db:check-tables
 ```
 

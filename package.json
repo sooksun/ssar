@@ -14,7 +14,7 @@
     "db:reset": "prisma migrate reset --force && npm run db:seed",
     "db:studio": "prisma studio",
     "db:test": "tsx scripts/test-db-connection.ts",
-    "db:check-tables": "tsx scripts/check-db-tables.ts",
+    "db:check-tables": "node scripts/check-db-tables.mjs",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:e2e": "playwright test"
