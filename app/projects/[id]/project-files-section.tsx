@@ -16,8 +16,8 @@ type FileInfo = {
 
 interface ProjectFilesSectionProps {
   projectId: string;
-  reportFile: FileInfo;
-  summaryFile: FileInfo;
+  reportFile: FileInfo | undefined;
+  summaryFile: FileInfo | undefined;
 }
 
 export function ProjectFilesSection({
