@@ -33,9 +33,12 @@ const LABEL: Record<string, string> = {
 export function PATeacherDocumentsSection({
   schools,
   currentAcademicYear,
+  currentUserName,
 }: {
   schools: School[];
   currentAcademicYear: number;
+  /** ชื่อครูที่ล็อกอิน — แสดงว่าบันทึกนี้เป็นของใคร */
+  currentUserName?: string | null;
 }) {
   const router = useRouter();
   const [schoolId, setSchoolId] = useState(schools[0]?.id ?? '');
@@ -127,9 +130,14 @@ export function PATeacherDocumentsSection({
   return (
     <div className="rounded-xl border bg-card p-6">
       <h2 className="text-xl font-semibold mb-2">บันทึก PA 1/ส, PA 2/ส, PA 3/ส (ของครู)</h2>
-      <p className="text-sm text-muted-foreground mb-4">
-        ครู 1 คน บันทึก 1 ครั้งต่อปีการศึกษา ต่อโรงเรียน — ผูกกับครู (ผู้ใช้) ปีการศึกษา และโรงเรียน
+      <p className="text-sm text-muted-foreground mb-2">
+        ครู 1 คน บันทึก 1 ครั้งต่อปีการศึกษา ต่อโรงเรียน — ผูกกับ ครู (ผู้ใช้) ปีการศึกษา และโรงเรียน
       </p>
+      {currentUserName && (
+        <p className="text-sm font-medium text-primary mb-4">
+          กำลังแสดง/บันทึกของ: {currentUserName}
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-4 mb-6">
         <div className="space-y-1">

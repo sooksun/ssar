@@ -162,6 +162,7 @@ export default async function PAPage() {
       <PATeacherDocumentsSection
         schools={schools.map((s) => ({ id: s.sc_id.toString(), name: s.name }))}
         currentAcademicYear={thaiAcademicYear()}
+        currentUserName={session.user.name ?? session.user.email ?? null}
       />
 
       <div className="rounded-xl border bg-muted/30 p-6">
