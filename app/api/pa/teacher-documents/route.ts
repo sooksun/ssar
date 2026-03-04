@@ -47,8 +47,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'ไม่มีสิทธิ์เข้าถึง' }, { status: 403 });
     }
 
+    const userId = BigInt(session.user.id);
+
     const docs = await prisma.pATeacherDocument.findMany({
-      where: { schoolId: schoolIdBigInt, academicYear: year },
+      where: { schoolId: schoolIdBigInt, academicYear: year, userId },
       orderBy: { documentType: 'asc' },
     });
 
@@ -110,6 +112,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'ไม่มีสิทธิ์เข้าถึงโรงเรียนนี้' }, { status: 403 });
     }
 
+    const userId = BigInt(session.user.id);
+
     if (storageType === 'GDRIVE') {
       if (!storagePath) {
         return NextResponse.json(
@@ -119,24 +123,30 @@ export async function POST(request: NextRequest) {
       }
       const doc = await prisma.pATeacherDocument.upsert({
         where: {
-          schoolId_academicYear_documentType: { schoolId, academicYear: year, documentType },
+          schoolId_academicYear_documentType_userId: {
+            schoolId,
+            academicYear: year,
+            documentType,
+            userId,
+          },
         },
         create: {
           schoolId,
+          userId,
           academicYear: year,
           documentType,
           fileName: fileName || 'ลิงก์ Google Drive',
           storageType: 'GDRIVE',
           storagePath,
           externalUrl: storagePath,
-          uploadedBy: BigInt(session.user.id),
+          uploadedBy: userId,
         },
         update: {
           fileName: fileName || 'ลิงก์ Google Drive',
           storageType: 'GDRIVE',
           storagePath,
           externalUrl: storagePath,
-          uploadedBy: BigInt(session.user.id),
+          uploadedBy: userId,
         },
       });
       revalidatePath('/pa');
@@ -166,7 +176,8 @@ export async function POST(request: NextRequest) {
       'uploads',
       'pa-teacher-docs',
       schoolId.toString(),
-      year.toString()
+      year.toString(),
+      userId.toString()
     );
     await mkdir(uploadDir, { recursive: true });
 
@@ -176,15 +187,21 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     await writeFile(filePath, Buffer.from(arrayBuffer));
 
-    const urlPath = `/uploads/pa-teacher-docs/${schoolId.toString()}/${year}/${safeName}`;
+    const urlPath = `/uploads/pa-teacher-docs/${schoolId.toString()}/${year}/${userId.toString()}/${safeName}`;
     const finalFileName = fileName || file.name;
 
     const doc = await prisma.pATeacherDocument.upsert({
       where: {
-        schoolId_academicYear_documentType: { schoolId, academicYear: year, documentType },
+        schoolId_academicYear_documentType_userId: {
+          schoolId,
+          academicYear: year,
+          documentType,
+          userId,
+        },
       },
       create: {
         schoolId,
+        userId,
         academicYear: year,
         documentType,
         fileName: finalFileName,
@@ -193,7 +210,7 @@ export async function POST(request: NextRequest) {
         externalUrl: urlPath,
         fileSize: typeof file.size === 'number' ? Math.round(file.size) : null,
         mimeType: file.type || null,
-        uploadedBy: BigInt(session.user.id),
+        uploadedBy: userId,
       },
       update: {
         fileName: finalFileName,
@@ -202,7 +219,7 @@ export async function POST(request: NextRequest) {
         externalUrl: urlPath,
         fileSize: typeof file.size === 'number' ? Math.round(file.size) : null,
         mimeType: file.type || null,
-        uploadedBy: BigInt(session.user.id),
+        uploadedBy: userId,
       },
     });
 

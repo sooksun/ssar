@@ -91,6 +91,7 @@ model User {
   reviews       EvidenceReview[] @relation("Reviewer")
   audits        AuditLog[]       @relation("Actor")
   projectsResponsible Project[]  @relation("ProjectResponsible")
+  paTeacherDocuments PATeacherDocument[] @relation("PATeacherDocumentOwner")
 
   @@map("user")
 }
@@ -965,11 +966,13 @@ model PASummary {
   @@map("pasummary")
 }
 
-/// บันทึกไฟล์ PA 1/ส, PA 2/ส, PA 3/ส ของครู ต่อโรงเรียนต่อปีการศึกษา (อัปโหลดไฟล์แทน)
+/// บันทึกไฟล์ PA 1/ส, PA 2/ส, PA 3/ส ของครู — ครู 1 คน บันทึก 1 ครั้งต่อปีการศึกษา ต่อโรงเรียน (ผูกกับ ครู, ปีการศึกษา, โรงเรียน)
 model PATeacherDocument {
   id            BigInt   @id @default(autoincrement())
   school        School   @relation(fields: [schoolId], references: [sc_id])
   schoolId      BigInt
+  user          User     @relation("PATeacherDocumentOwner", fields: [userId], references: [id])
+  userId        BigInt   // ครูที่บันทึก (ผูกกับครู)
   academicYear  Int      // ปีการศึกษา (พ.ศ.)
   documentType  String   // PA1, PA2, PA3 (PA 1/ส, PA 2/ส, PA 3/ส)
   fileName      String
@@ -981,8 +984,9 @@ model PATeacherDocument {
   uploadedBy    BigInt?
   uploadedAt    DateTime @default(now())
 
-  @@unique([schoolId, academicYear, documentType])
+  @@unique([schoolId, academicYear, documentType, userId])
   @@index([schoolId, academicYear])
+  @@index([userId, schoolId, academicYear])
   @@map("pateacherdocument")
 }
 

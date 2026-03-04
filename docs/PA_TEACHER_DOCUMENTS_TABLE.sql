@@ -1,23 +1,27 @@
--- ตารางบันทึกไฟล์ PA 1/ส, PA 2/ส, PA 3/ส ของครู ต่อโรงเรียนต่อปีการศึกษา
+-- ตารางบันทึกไฟล์ PA 1/ส, PA 2/ส, PA 3/ส ของครู — ครู 1 คน บันทึก 1 ครั้งต่อปีการศึกษา ต่อโรงเรียน (ผูกกับ ครู, ปีการศึกษา, โรงเรียน)
 -- รันเมื่อใช้ Prisma migrate หรือสร้างตารางเอง
 
--- ถ้าใช้ Prisma: npx prisma migrate dev --name add_pateacherdocument
+-- ถ้ามีตารางเก่าที่ไม่มี userId ให้รัน docs/PA_TEACHER_DOCUMENTS_ADD_USERID.sql ก่อน
 
--- หรือสร้างตารางเอง (MySQL):
+-- สร้างตารางใหม่ (MySQL) รวม userId:
 -- CREATE TABLE IF NOT EXISTS pateacherdocument (
---   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
---   schoolId BIGINT UNSIGNED NOT NULL,
+--   id BIGINT NOT NULL AUTO_INCREMENT,
+--   schoolId BIGINT NOT NULL,
+--   userId BIGINT NOT NULL,
 --   academicYear INT NOT NULL,
---   documentType VARCHAR(10) NOT NULL,
---   fileName VARCHAR(500) NOT NULL,
---   storageType VARCHAR(20) NOT NULL DEFAULT 'URL',
---   storagePath VARCHAR(1000) NULL,
---   externalUrl VARCHAR(1000) NULL,
+--   documentType VARCHAR(191) NOT NULL,
+--   fileName VARCHAR(191) NOT NULL,
+--   storageType VARCHAR(191) NOT NULL DEFAULT 'URL',
+--   storagePath VARCHAR(191) NULL,
+--   externalUrl VARCHAR(191) NULL,
 --   fileSize INT NULL,
---   mimeType VARCHAR(255) NULL,
---   uploadedBy BIGINT UNSIGNED NULL,
+--   mimeType VARCHAR(191) NULL,
+--   uploadedBy BIGINT NULL,
 --   uploadedAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 --   PRIMARY KEY (id),
---   UNIQUE KEY schoolId_academicYear_documentType (schoolId, academicYear, documentType),
---   KEY schoolId_academicYear (schoolId, academicYear)
+--   UNIQUE KEY pateacherdocument_schoolId_academicYear_documentType_userId_key (schoolId, academicYear, documentType, userId),
+--   KEY pateacherdocument_schoolId_academicYear_idx (schoolId, academicYear),
+--   KEY pateacherdocument_userId_schoolId_academicYear_idx (userId, schoolId, academicYear),
+--   CONSTRAINT pateacherdocument_schoolId_fkey FOREIGN KEY (schoolId) REFERENCES school(sc_id),
+--   CONSTRAINT pateacherdocument_userId_fkey FOREIGN KEY (userId) REFERENCES user(id)
 -- );

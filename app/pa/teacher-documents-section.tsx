@@ -128,7 +128,7 @@ export function PATeacherDocumentsSection({
     <div className="rounded-xl border bg-card p-6">
       <h2 className="text-xl font-semibold mb-2">บันทึก PA 1/ส, PA 2/ส, PA 3/ส (ของครู)</h2>
       <p className="text-sm text-muted-foreground mb-4">
-        อัปโหลดไฟล์หรือแนบลิงก์ Google Drive ตามปีการศึกษา — โรงเรียนละชุดต่อปี
+        ครู 1 คน บันทึก 1 ครั้งต่อปีการศึกษา ต่อโรงเรียน — ผูกกับครู (ผู้ใช้) ปีการศึกษา และโรงเรียน
       </p>
 
       <div className="flex flex-wrap gap-4 mb-6">
