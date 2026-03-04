@@ -51,7 +51,6 @@ export default async function NewProjectPage({
   // ตัวชี้วัด QA (สำหรับ dropdown)
   const qaIndicators = await prisma.qAIndicator.findMany({
     orderBy: [{ standardId: 'asc' }, { sortNo: 'asc' }],
-    include: { standard: { select: { code: true, nameTh: true } } },
     select: {
       id: true,
       code: true,
