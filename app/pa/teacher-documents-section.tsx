@@ -131,7 +131,7 @@ export function PATeacherDocumentsSection({
     <div className="rounded-xl border bg-card p-6">
       <h2 className="text-xl font-semibold mb-2">บันทึก PA 1/ส, PA 2/ส, PA 3/ส (ของครู)</h2>
       <p className="text-sm text-muted-foreground mb-2">
-        ครู 1 คน บันทึก 1 ครั้งต่อปีการศึกษา ต่อโรงเรียน — ผูกกับ ครู (ผู้ใช้) ปีการศึกษา และโรงเรียน
+        ครู 1 คน บันทึกได้ 1 ชุด (PA 1/ส, PA 2/ส, PA 3/ส) ต่อคน ต่อโรงเรียน ต่อปีการศึกษา — โรงเรียนมี 10 คน บันทึกได้ 10 ชุด (ผูก user, โรงเรียน, ปีการศึกษา)
       </p>
       {currentUserName && (
         <p className="text-sm font-medium text-primary mb-4">
