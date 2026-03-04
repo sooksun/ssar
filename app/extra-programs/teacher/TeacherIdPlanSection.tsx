@@ -33,7 +33,7 @@ export function TeacherIdPlanSection({
   const [schoolId, setSchoolId] = useState(schools[0]?.id ?? '');
   const [academicYear, setAcademicYear] = useState(currentAcademicYear);
   const [selectedForUserId, setSelectedForUserId] = useState('');
-  const [record, setRecord] = useState<IdPlanRecord | null>(null);
+  const [, setRecord] = useState<IdPlanRecord | null>(null);
   const [idPlanCode, setIdPlanCode] = useState('');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
