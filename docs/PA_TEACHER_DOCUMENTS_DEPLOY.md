@@ -23,7 +23,13 @@ mysql -h 127.0.0.1 -u YOUR_DB_USER -p YOUR_DB_NAME < docs/PA_TEACHER_DOCUMENTS_A
 
 ถ้าไม่รัน: แอปจะ error ตอนบันทึก/โหลด PA ครู (ตารางไม่มีคอลัมน์ `userId`)
 
-### 2. Deploy โค้ด
+### 2. สิทธิ์โฟลเดอร์อัปโหลด (Docker)
+
+ถ้าอัปโหลดแล้วได้ข้อความ "ไม่สามารถเขียนไฟล์ได้" หรือ "ไม่สามารถสร้างโฟลเดอร์ได้":
+- ใน Docker ต้องให้ container เขียนโฟลเดอร์ `public/uploads` ได้ (เช่น mount volume หรือ chown)
+- ตัวอย่างใน `docker-compose.yml`: mount `./public/uploads:/app/public/uploads` เพื่อให้ไฟล์อยู่บนโฮสต์และมีสิทธิ์เขียน
+
+### 3. Deploy โค้ด
 
 ```bash
 cd /DATA/AppData/www/ssar   # หรือ path โปรเจกต์

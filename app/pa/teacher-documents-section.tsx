@@ -33,28 +33,44 @@ const LABEL: Record<string, string> = {
 export function PATeacherDocumentsSection({
   schools,
   currentAcademicYear,
+  currentUserId,
   currentUserName,
+  canSelectTeacher = false,
+  teachersBySchool = {},
 }: {
   schools: School[];
   currentAcademicYear: number;
+  currentUserId: string;
   /** ชื่อครูที่ล็อกอิน — แสดงว่าบันทึกนี้เป็นของใคร */
   currentUserName?: string | null;
+  /** ผู้ดูแลระบบ/ผอ. สามารถเลือกครูเพื่อดูหรือบันทึก PA แทนได้ */
+  canSelectTeacher?: boolean;
+  teachersBySchool?: Record<string, { id: string; name: string }[]>;
 }) {
   const router = useRouter();
   const [schoolId, setSchoolId] = useState(schools[0]?.id ?? '');
   const [academicYear, setAcademicYear] = useState(currentAcademicYear);
+  const [selectedForUserId, setSelectedForUserId] = useState('');
   const [docs, setDocs] = useState<DocsState>({ PA1: null, PA2: null, PA3: null });
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [gdriveLinks, setGdriveLinks] = useState<Record<string, string>>({ PA1: '', PA2: '', PA3: '' });
 
+  const teacherList = schoolId ? teachersBySchool[schoolId] ?? [] : [];
+  const displayName =
+    selectedForUserId === '' || selectedForUserId === currentUserId
+      ? currentUserName ?? 'ผู้ใช้'
+      : teacherList.find((t) => t.id === selectedForUserId)?.name ?? 'ครูที่เลือก';
+
   const fetchDocs = useCallback(async () => {
     if (!schoolId) return;
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/pa/teacher-documents?schoolId=${encodeURIComponent(schoolId)}&academicYear=${academicYear}`
-      );
+      let url = `/api/pa/teacher-documents?schoolId=${encodeURIComponent(schoolId)}&academicYear=${academicYear}`;
+      if (canSelectTeacher && selectedForUserId && selectedForUserId !== currentUserId) {
+        url += `&forUserId=${encodeURIComponent(selectedForUserId)}`;
+      }
+      const res = await fetch(url);
       const json = await res.json();
       if (json.success && json.data) {
         setDocs(json.data);
@@ -66,7 +82,7 @@ export function PATeacherDocumentsSection({
     } finally {
       setLoading(false);
     }
-  }, [schoolId, academicYear]);
+  }, [schoolId, academicYear, canSelectTeacher, selectedForUserId, currentUserId]);
 
   useEffect(() => {
     fetchDocs();
@@ -96,6 +112,12 @@ export function PATeacherDocumentsSection({
     }
   }
 
+  function addForUserId(fd: FormData) {
+    if (canSelectTeacher && selectedForUserId && selectedForUserId !== currentUserId) {
+      fd.set('forUserId', selectedForUserId);
+    }
+  }
+
   function onFileChange(type: 'PA1' | 'PA2' | 'PA3', e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -104,6 +126,7 @@ export function PATeacherDocumentsSection({
     fd.set('academicYear', String(academicYear));
     fd.set('documentType', type);
     fd.set('storageType', 'URL');
+    addForUserId(fd);
     fd.append('files', file);
     handleUpload(type, fd);
     e.target.value = '';
@@ -122,6 +145,7 @@ export function PATeacherDocumentsSection({
     fd.set('storageType', 'GDRIVE');
     fd.set('storagePath', url);
     fd.set('fileName', LABEL[type]);
+    addForUserId(fd);
     handleUpload(type, fd);
   }
 
@@ -133,18 +157,22 @@ export function PATeacherDocumentsSection({
       <p className="text-sm text-muted-foreground mb-2">
         ครู 1 คน บันทึกได้ 1 ชุด (PA 1/ส, PA 2/ส, PA 3/ส) ต่อคน ต่อโรงเรียน ต่อปีการศึกษา — โรงเรียนมี 10 คน บันทึกได้ 10 ชุด (ผูก user, โรงเรียน, ปีการศึกษา)
       </p>
-      {currentUserName && (
-        <p className="text-sm font-medium text-primary mb-4">
-          กำลังแสดง/บันทึกของ: {currentUserName}
-        </p>
-      )}
+      <p className="text-sm font-medium text-primary mb-4">
+        กำลังแสดง/บันทึกของ: {displayName}
+        {canSelectTeacher && selectedForUserId && selectedForUserId !== currentUserId && (
+          <span className="text-muted-foreground font-normal"> (บันทึกแทนครู)</span>
+        )}
+      </p>
 
       <div className="flex flex-wrap gap-4 mb-6">
         <div className="space-y-1">
           <label className="text-sm font-medium">โรงเรียน</label>
           <select
             value={schoolId}
-            onChange={(e) => setSchoolId(e.target.value)}
+            onChange={(e) => {
+              setSchoolId(e.target.value);
+              setSelectedForUserId('');
+            }}
             className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm w-[220px]"
           >
             {schools.map((s) => (
@@ -168,6 +196,25 @@ export function PATeacherDocumentsSection({
             ))}
           </select>
         </div>
+        {canSelectTeacher && teacherList.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-sm font-medium">แสดง/บันทึก PA ของ</label>
+            <select
+              value={selectedForUserId}
+              onChange={(e) => setSelectedForUserId(e.target.value)}
+              className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm w-[220px]"
+            >
+              <option value="">ตนเอง ({currentUserName ?? 'ผู้ใช้'})</option>
+              {teacherList
+                .filter((t) => t.id !== currentUserId)
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {loading ? (

@@ -109,4 +109,47 @@ export async function canAccessSchool(
   return user?.schoolId === schoolId;
 }
 
+/**
+ * ตรวจสอบว่า user สามารถจัดการ PA 1/ส, 2/ส, 3/ส ของครูคนอื่นในโรงเรียนนี้ได้หรือไม่
+ * (ผู้ดูแลระบบ / ผู้อำนวยการ / ผู้ดูแลโรงเรียน)
+ */
+export async function canManageTeacherPaInSchool(
+  userIdInput: BigIntInput,
+  schoolIdInput: BigIntInput
+): Promise<boolean> {
+  const userId = toBigInt(userIdInput);
+  const schoolId = toBigInt(schoolIdInput);
+
+  const memberships = await prisma.userSchoolRole.findMany({
+    where: { userId, isActive: true },
+    select: { schoolId: true, role: { select: { code: true } } },
+  });
+
+  for (const m of memberships) {
+    if (m.role?.code === 'ADMIN') return true;
+    if (
+      m.schoolId === schoolId &&
+      ['SCHOOL_DIRECTOR', 'SCHOOL_ADMIN'].includes(m.role?.code ?? '')
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * ตรวจสอบว่า targetUserId เป็นผู้ใช้ในโรงเรียน schoolId หรือไม่ (มี UserSchoolRole ที่โรงเรียนนี้)
+ */
+export async function isUserInSchool(
+  targetUserIdInput: BigIntInput,
+  schoolIdInput: BigIntInput
+): Promise<boolean> {
+  const targetUserId = toBigInt(targetUserIdInput);
+  const schoolId = toBigInt(schoolIdInput);
+  const role = await prisma.userSchoolRole.findFirst({
+    where: { userId: targetUserId, schoolId, isActive: true },
+  });
+  return !!role;
+}
+
 

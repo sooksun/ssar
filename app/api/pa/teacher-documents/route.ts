@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth/nextauth';
-import { canAccessSchool } from '@/lib/auth/scoping';
+import { canAccessSchool, canManageTeacherPaInSchool, isUserInSchool } from '@/lib/auth/scoping';
 import { prisma } from '@/lib/db';
 import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
@@ -47,7 +47,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'ไม่มีสิทธิ์เข้าถึง' }, { status: 403 });
     }
 
-    const userId = BigInt(session.user.id);
+    let userId = BigInt(session.user.id);
+    const forUserIdParam = searchParams.get('forUserId');
+    if (forUserIdParam) {
+      const canManage = await canManageTeacherPaInSchool(BigInt(session.user.id), schoolIdBigInt);
+      if (canManage) {
+        const targetId = BigInt(forUserIdParam);
+        const inSchool = await isUserInSchool(targetId, schoolIdBigInt);
+        if (inSchool) userId = targetId;
+      }
+    }
 
     const docs = await prisma.pATeacherDocument.findMany({
       where: { schoolId: schoolIdBigInt, academicYear: year, userId },
@@ -61,10 +70,17 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json({ success: true, data: byType });
-  } catch (e) {
+  } catch (e: unknown) {
     console.error('[api/pa/teacher-documents] GET error:', e);
+    const err = e as { message?: string; code?: string };
+    let message = 'ไม่สามารถโหลดข้อมูลได้';
+    if (err?.message?.includes('userId') || err?.message?.includes('pateacherdocument') || err?.code === 'P2021') {
+      message = 'ฐานข้อมูล: ตารางหรือคอลัมน์ userId ไม่ครบ — รัน docs/PA_TEACHER_DOCUMENTS_ADD_USERID.sql';
+    } else if (err?.message) {
+      message = err.message;
+    }
     return NextResponse.json(
-      { success: false, error: 'ไม่สามารถโหลดข้อมูลได้' },
+      { success: false, error: message },
       { status: 500 }
     );
   }
@@ -93,6 +109,7 @@ export async function POST(request: NextRequest) {
     const storageType = ((formData.get('storageType') as string) || 'URL').trim();
     const storagePath = (formData.get('storagePath') as string)?.trim();
     const fileName = (formData.get('fileName') as string)?.trim();
+    const forUserIdRaw = (formData.get('forUserId') as string)?.trim();
 
     if (!schoolIdRaw || !academicYearRaw || !documentType || !isDocType(documentType)) {
       return NextResponse.json(
@@ -112,7 +129,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'ไม่มีสิทธิ์เข้าถึงโรงเรียนนี้' }, { status: 403 });
     }
 
-    const userId = BigInt(session.user.id);
+    let userId = BigInt(session.user.id);
+    if (forUserIdRaw) {
+      const canManage = await canManageTeacherPaInSchool(BigInt(session.user.id), schoolId);
+      if (canManage) {
+        const targetId = BigInt(forUserIdRaw);
+        const inSchool = await isUserInSchool(targetId, schoolId);
+        if (inSchool) userId = targetId;
+      }
+    }
+
+    const uploadedBy = BigInt(session.user.id);
 
     if (storageType === 'GDRIVE') {
       if (!storagePath) {
@@ -139,14 +166,14 @@ export async function POST(request: NextRequest) {
           storageType: 'GDRIVE',
           storagePath,
           externalUrl: storagePath,
-          uploadedBy: userId,
+          uploadedBy,
         },
         update: {
           fileName: fileName || 'ลิงก์ Google Drive',
           storageType: 'GDRIVE',
           storagePath,
           externalUrl: storagePath,
-          uploadedBy: userId,
+          uploadedBy,
         },
       });
       revalidatePath('/pa');
@@ -179,13 +206,31 @@ export async function POST(request: NextRequest) {
       year.toString(),
       userId.toString()
     );
-    await mkdir(uploadDir, { recursive: true });
+    try {
+      await mkdir(uploadDir, { recursive: true });
+    } catch (dirErr: unknown) {
+      const msg = dirErr instanceof Error ? dirErr.message : String(dirErr);
+      console.error('[api/pa/teacher-documents] mkdir error:', dirErr);
+      return NextResponse.json(
+        { success: false, error: `ไม่สามารถสร้างโฟลเดอร์ได้: ${msg}. ตรวจสอบสิทธิ์ public/uploads` },
+        { status: 500 }
+      );
+    }
 
     const timestamp = Date.now();
     const safeName = `${documentType}-${timestamp}-${file.name}`.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]/g, '_');
     const filePath = path.join(uploadDir, safeName);
     const arrayBuffer = await file.arrayBuffer();
-    await writeFile(filePath, Buffer.from(arrayBuffer));
+    try {
+      await writeFile(filePath, Buffer.from(arrayBuffer));
+    } catch (writeErr: unknown) {
+      const msg = writeErr instanceof Error ? writeErr.message : String(writeErr);
+      console.error('[api/pa/teacher-documents] writeFile error:', writeErr);
+      return NextResponse.json(
+        { success: false, error: `ไม่สามารถเขียนไฟล์ได้: ${msg}. ตรวจสอบสิทธิ์โฟลเดอร์` },
+        { status: 500 }
+      );
+    }
 
     const urlPath = `/uploads/pa-teacher-docs/${schoolId.toString()}/${year}/${userId.toString()}/${safeName}`;
     const finalFileName = fileName || file.name;
@@ -210,7 +255,7 @@ export async function POST(request: NextRequest) {
         externalUrl: urlPath,
         fileSize: typeof file.size === 'number' ? Math.round(file.size) : null,
         mimeType: file.type || null,
-        uploadedBy: userId,
+        uploadedBy,
       },
       update: {
         fileName: finalFileName,
@@ -219,16 +264,25 @@ export async function POST(request: NextRequest) {
         externalUrl: urlPath,
         fileSize: typeof file.size === 'number' ? Math.round(file.size) : null,
         mimeType: file.type || null,
-        uploadedBy: userId,
+        uploadedBy,
       },
     });
 
     revalidatePath('/pa');
     return NextResponse.json({ success: true, data: doc });
-  } catch (e) {
+  } catch (e: unknown) {
     console.error('[api/pa/teacher-documents] POST error:', e);
+    const err = e as { message?: string; code?: string };
+    let message = 'ไม่สามารถอัปโหลดได้';
+    if (err?.message) {
+      if (err.message.includes('userId') || err.message.includes('pateacherdocument') || (err as { code?: string }).code === 'P2021') {
+        message = 'ฐานข้อมูล: ตารางหรือคอลัมน์ userId ไม่ครบ — รัน docs/PA_TEACHER_DOCUMENTS_ADD_USERID.sql บนเซิร์ฟเวอร์';
+      } else {
+        message = err.message;
+      }
+    }
     return NextResponse.json(
-      { success: false, error: 'ไม่สามารถอัปโหลดได้' },
+      { success: false, error: message },
       { status: 500 }
     );
   }
