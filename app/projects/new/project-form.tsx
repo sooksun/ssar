@@ -67,6 +67,11 @@ export default function ProjectForm({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
 
+  const [reportFile, setReportFile] = useState<File | null>(null);
+  const [summaryFile, setSummaryFile] = useState<File | null>(null);
+  const [reportSigned, setReportSigned] = useState(false);
+  const [summarySigned, setSummarySigned] = useState(false);
+
   const [schoolUsers, setSchoolUsers] = useState<{ id: string; fullName: string; email: string }[]>([]);
 
   useEffect(() => {
@@ -99,19 +104,49 @@ export default function ProjectForm({
     formData.append('description', description.trim());
     formData.append('status', 'DRAFT');
 
-    startTransition(() => {
-      createProject(formData)
-        .then((result) => {
-          if (!result.success) {
-            setError(result.error || 'เกิดข้อผิดพลาด');
-            toast.error(result.error || 'เกิดข้อผิดพลาดในการบันทึก');
-            return;
-          }
-          toast.success('บันทึกโครงการเรียบร้อย');
-          const id = result.data?.id;
-          if (id) router.push(`/projects/${id}`);
-          else router.push('/projects');
-        });
+    startTransition(async () => {
+      const result = await createProject(formData);
+      if (!result.success) {
+        setError(result.error || 'เกิดข้อผิดพลาด');
+        toast.error(result.error || 'เกิดข้อผิดพลาดในการบันทึก');
+        return;
+      }
+      const id = result.data?.id;
+      if (!id) {
+        toast.success('บันทึกโครงการเรียบร้อย');
+        router.push('/projects');
+        return;
+      }
+
+      const uploads: Promise<Response>[] = [];
+      if (reportFile) {
+        const fd = new FormData();
+        fd.append('fileType', 'PROJECT_REPORT');
+        fd.append('file', reportFile);
+        if (reportSigned) fd.append('signed', '1');
+        uploads.push(fetch(`/api/projects/${id}/files`, { method: 'POST', body: fd }));
+      }
+      if (summaryFile) {
+        const fd = new FormData();
+        fd.append('fileType', 'EXECUTION_SUMMARY');
+        fd.append('file', summaryFile);
+        if (summarySigned) fd.append('signed', '1');
+        uploads.push(fetch(`/api/projects/${id}/files`, { method: 'POST', body: fd }));
+      }
+
+      if (uploads.length > 0) {
+        try {
+          const results = await Promise.all(uploads);
+          const failed = results.some((r) => !r.ok);
+          if (failed) toast.error('บันทึกโครงการแล้ว แต่การอัปโหลดไฟล์บางไฟล์มีปัญหา');
+          else toast.success('บันทึกโครงการและอัปโหลดไฟล์เรียบร้อย');
+        } catch {
+          toast.error('บันทึกโครงการแล้ว แต่การอัปโหลดไฟล์มีปัญหา');
+        }
+      } else {
+        toast.success('บันทึกโครงการเรียบร้อย');
+      }
+      router.push(`/projects/${id}`);
     });
   }
 
@@ -255,6 +290,52 @@ export default function ProjectForm({
           rows={3}
           className="w-full rounded-md border px-3 py-2"
         />
+      </div>
+
+      {/* อัปโหลดรายงานโครงการ และสรุปการดำเนินโครงการ (PDF พร้อมลายเซ็นอิเล็กทรอนิกส์) */}
+      <div className="space-y-6 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+        <h3 className="text-sm font-semibold text-amber-800">รายงานโครงการ และสรุปการดำเนินโครงการ (PDF พร้อมลายเซ็นอิเล็กทรอนิกส์)</h3>
+        <p className="text-xs text-muted-foreground">สามารถแนบไฟล์ PDF ได้ตอนบันทึกโครงการ หรือไปอัปโหลดทีหลังที่หน้ารายละเอียดโครงการ</p>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">รายงานโครงการ (PDF)</label>
+            <input
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={(e) => setReportFile(e.target.files?.[0] ?? null)}
+              className="block w-full text-sm file:mr-2 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-primary-foreground"
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={reportSigned}
+                onChange={(e) => setReportSigned(e.target.checked)}
+              />
+              ไฟล์นี้ลงลายเซ็นอิเล็กทรอนิกส์แล้ว
+            </label>
+            {reportFile && <p className="text-xs text-muted-foreground">เลือกแล้ว: {reportFile.name}</p>}
+          </div>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">สรุปการดำเนินโครงการ (PDF)</label>
+            <input
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={(e) => setSummaryFile(e.target.files?.[0] ?? null)}
+              className="block w-full text-sm file:mr-2 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-primary-foreground"
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={summarySigned}
+                onChange={(e) => setSummarySigned(e.target.checked)}
+              />
+              ไฟล์นี้ลงลายเซ็นอิเล็กทรอนิกส์แล้ว
+            </label>
+            {summaryFile && <p className="text-xs text-muted-foreground">เลือกแล้ว: {summaryFile.name}</p>}
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">รองรับไฟล์ PDF ขนาดไม่เกิน 10 MB</p>
       </div>
 
       <div className="flex gap-2">
