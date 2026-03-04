@@ -17,6 +17,21 @@ function isDocType(s: string): s is DocType {
   return DOC_TYPES.includes(s as DocType);
 }
 
+/** แปลง BigInt เป็น string เพื่อให้ JSON.stringify ไม่ error */
+function serializeForJson<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return String(obj) as T;
+  if (Array.isArray(obj)) return obj.map(serializeForJson) as T;
+  if (typeof obj === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      out[k] = serializeForJson(v);
+    }
+    return out as T;
+  }
+  return obj;
+}
+
 /** GET: ดึงรายการ PA 1/ส, PA 2/ส, PA 3/ส ตามโรงเรียนและปีการศึกษา */
 export async function GET(request: NextRequest) {
   try {
@@ -69,7 +84,7 @@ export async function GET(request: NextRequest) {
       PA3: docs.find((d) => d.documentType === 'PA3') ?? null,
     };
 
-    return NextResponse.json({ success: true, data: byType });
+    return NextResponse.json({ success: true, data: serializeForJson(byType) });
   } catch (e: unknown) {
     console.error('[api/pa/teacher-documents] GET error:', e);
     const err = e as { message?: string; code?: string };
@@ -177,7 +192,7 @@ export async function POST(request: NextRequest) {
         },
       });
       revalidatePath('/pa');
-      return NextResponse.json({ success: true, data: doc });
+      return NextResponse.json({ success: true, data: serializeForJson(doc) });
     }
 
     // URL = อัปโหลดไฟล์
@@ -269,7 +284,7 @@ export async function POST(request: NextRequest) {
     });
 
     revalidatePath('/pa');
-    return NextResponse.json({ success: true, data: doc });
+    return NextResponse.json({ success: true, data: serializeForJson(doc) });
   } catch (e: unknown) {
     console.error('[api/pa/teacher-documents] POST error:', e);
     const err = e as { message?: string; code?: string };
