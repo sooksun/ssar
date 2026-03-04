@@ -148,7 +148,10 @@ export async function createProject(formData: FormData) {
       status: (formData.get('status') as string) || 'DRAFT',
     };
     if (!raw.code) {
-      raw.code = await getNextProjectCode(BigInt(raw.schoolId), parseInt(raw.academicYear, 10));
+      raw.code = await getNextProjectCode(
+        BigInt(raw.schoolId),
+        parseInt(String(raw.academicYear), 10)
+      );
     }
     const validated = createProjectSchema.parse(raw);
 
