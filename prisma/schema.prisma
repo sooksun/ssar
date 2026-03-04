@@ -54,6 +54,9 @@ model School {
   paAgreements         PAAgreement[]
   paSummaries          PASummary[]
   paTeacherDocuments   PATeacherDocument[]
+  teacherSarDocuments  TeacherSarDocument[]
+  teacherIdPlans       TeacherIdPlan[]
+  communityTeachingRecords CommunityTeachingRecord[]
   developmentSummaries DevelopmentSummary[]
   projects             Project[]
   projectFiles         ProjectFile[]
@@ -92,6 +95,9 @@ model User {
   audits        AuditLog[]       @relation("Actor")
   projectsResponsible Project[]  @relation("ProjectResponsible")
   paTeacherDocuments PATeacherDocument[] @relation("PATeacherDocumentOwner")
+  teacherSarDocuments TeacherSarDocument[] @relation("TeacherSarDocumentOwner")
+  teacherIdPlans      TeacherIdPlan[]     @relation("TeacherIdPlanOwner")
+  communityTeachingRecords CommunityTeachingRecord[] @relation("CommunityTeachingRecordOwner")
 
   @@map("user")
 }
@@ -988,6 +994,79 @@ model PATeacherDocument {
   @@index([schoolId, academicYear])
   @@index([userId, schoolId, academicYear])
   @@map("pateacherdocument")
+}
+
+/// ส่ง SAR ครู — ครู 1 คน 1 ไฟล์ ต่อโรงเรียน ต่อปีการศึกษา (logic เหมือน PA 1/ส, 2/ส, 3/ส)
+model TeacherSarDocument {
+  id           BigInt   @id @default(autoincrement())
+  school       School   @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  user         User     @relation("TeacherSarDocumentOwner", fields: [userId], references: [id])
+  userId       BigInt
+  academicYear Int      // ปีการศึกษา (พ.ศ.)
+  fileName     String
+  storageType  String   @default("URL")
+  storagePath  String?
+  externalUrl  String?
+  fileSize     Int?
+  mimeType     String?
+  uploadedBy   BigInt?
+  uploadedAt   DateTime @default(now())
+
+  @@unique([schoolId, academicYear, userId])
+  @@index([schoolId, academicYear])
+  @@index([userId, schoolId, academicYear])
+  @@map("teachersardocument")
+}
+
+/// ID plan ของครู — ครู 1 คน 1 รายการ ต่อโรงเรียน ต่อปีการศึกษา
+model TeacherIdPlan {
+  id           BigInt   @id @default(autoincrement())
+  school       School   @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  user         User     @relation("TeacherIdPlanOwner", fields: [userId], references: [id])
+  userId       BigInt
+  academicYear Int      // ปีการศึกษา (พ.ศ.)
+  idPlanCode   String   // รหัสแผน / ID plan
+  note         String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([schoolId, academicYear, userId])
+  @@index([schoolId, academicYear])
+  @@index([userId, schoolId, academicYear])
+  @@map("teacheridplan")
+}
+
+/// บันทึกการสอนชุมชน — ภาคเรียนละไม่เกิน 1 ฉบับต่อ 1 คน (อ้างอิง template docref/pp5.pdf)
+model CommunityTeachingRecord {
+  id           BigInt   @id @default(autoincrement())
+  school       School   @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  user         User     @relation("CommunityTeachingRecordOwner", fields: [userId], references: [id])
+  userId       BigInt
+  academicYear Int      // ปีการศึกษา (พ.ศ.)
+  semester     Int      // ภาคเรียนที่ 1 หรือ 2
+  title        String?  // ชื่อกิจกรรม/หัวข้อ
+  activityDate DateTime? // วันที่จัดกิจกรรม
+  location     String?  // สถานที่
+  summary      String?  @db.Text // สรุปผล/รายละเอียด
+  templateData Json?    // ข้อมูลเพิ่มตาม template pp5.pdf (กรอกแล้ว)
+  fileName     String?
+  storageType  String   @default("URL")
+  storagePath  String?
+  externalUrl  String?
+  fileSize     Int?
+  mimeType     String?
+  uploadedBy   BigInt?
+  uploadedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([schoolId, academicYear, semester, userId])
+  @@index([schoolId, academicYear, semester])
+  @@index([userId, schoolId, academicYear])
+  @@map("communityteachingrecord")
 }
 
 // =============================================================================

@@ -8,6 +8,11 @@ const adminLinks = [
     description: 'จัดการบัญชีผู้ใช้ กำหนดโรงเรียนหลักและบทบาท',
   },
   {
+    href: '/admin/school-roles',
+    title: 'บทบาทในโรงเรียน (UserSchoolRole)',
+    description: 'ดู/กำหนดว่าใครมีบทบาทใดในโรงเรียนใด',
+  },
+  {
     href: '/admin/roles',
     title: 'บทบาท',
     description: 'สร้าง/แก้ไขบทบาทสำหรับควบคุมสิทธิ์',

@@ -49,6 +49,9 @@ const EXPECTED_TABLES = [
   'paevidencemapping',
   'pasummary',
   'pateacherdocument',
+  'teachersardocument',
+  'teacheridplan',
+  'communityteachingrecord',
   'obecpolicy',
   'project',
   'projectfile',
@@ -57,6 +60,9 @@ const EXPECTED_TABLES = [
 /** ตารางที่ต้องมีคอลัมน์เฉพาะ (ตาราง -> คอลัมน์ที่ต้องมี) */
 const REQUIRED_COLUMNS: Record<string, string[]> = {
   pateacherdocument: ['userId', 'schoolId', 'academicYear', 'documentType'],
+  teachersardocument: ['userId', 'schoolId', 'academicYear'],
+  teacheridplan: ['userId', 'schoolId', 'academicYear', 'idPlanCode'],
+  communityteachingrecord: ['userId', 'schoolId', 'academicYear', 'semester'],
   project: ['schoolId', 'code', 'academicYear', 'responsibleUserId'],
   projectfile: ['projectId', 'schoolId', 'fileType'],
   obecpolicy: ['fiscalYear', 'code', 'nameTh'],

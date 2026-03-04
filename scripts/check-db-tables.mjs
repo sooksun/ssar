@@ -16,11 +16,15 @@ const EXPECTED_TABLES = [
   'selfassessmentindicator', 'selfassessmentevidencelink', 'indicatorscale', 'teachingmedia',
   'teachingmediafile', 'lessonplan', 'lessonplanfile', 'paaspect', 'paindicator', 'paindicatorscale',
   'paconsideration', 'paagreement', 'paagreementitem', 'pachallengeitem', 'pachallengeconsideration',
-  'paevidencemapping', 'pasummary', 'pateacherdocument', 'obecpolicy', 'project', 'projectfile',
+  'paevidencemapping', 'pasummary',   'pateacherdocument', 'teachersardocument', 'teacheridplan', 'communityteachingrecord', 'obecpolicy', 'project', 'projectfile',
 ];
+
 
 const REQUIRED_COLUMNS = {
   pateacherdocument: ['userId', 'schoolId', 'academicYear', 'documentType'],
+  teachersardocument: ['userId', 'schoolId', 'academicYear'],
+  teacheridplan: ['userId', 'schoolId', 'academicYear', 'idPlanCode'],
+  communityteachingrecord: ['userId', 'schoolId', 'academicYear', 'semester'],
   project: ['schoolId', 'code', 'academicYear', 'responsibleUserId'],
   projectfile: ['projectId', 'schoolId', 'fileType'],
   obecpolicy: ['fiscalYear', 'code', 'nameTh'],

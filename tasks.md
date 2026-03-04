@@ -395,3 +395,43 @@ Setup Docker และ environment configuration
 - ✅ Unit tests (Jest/Vitest)
 - ✅ E2E tests (Playwright)
 - ✅ Test configuration files
+
+---
+
+## 8. โปรแกรมเสริม (Extra Programs)
+
+### Objective
+ระบบบันทึก PA ครู, SAR ครู, ID plan ครู, และบันทึกการสอนชุมชน — รองรับทั้งอัปโหลดไฟล์และลิงก์ Google Drive; admin/ผอ. บันทึกแทนครูได้
+
+### Tasks
+
+#### 8.1 PA ครู (PA 1/ส, PA 2/ส, PA 3/ส)
+- โมเดล `PATeacherDocument`: schoolId, userId, academicYear, documentType (PA1/PA2/PA3); unique ต่อคน/โรงเรียน/ปี
+- API `POST/GET /api/pa/teacher-documents`: multipart (ไฟล์หรือ storageType=GDRIVE + storagePath); รองรับ forUserId
+- หน้า `/pa`: section บันทึก PA 1/ส, 2/ส, 3/ส — เลือกโรงเรียน/ปี/ครู(ถ้า admin), อัปโหลดไฟล์หรือกรอกลิงก์ GDrive แล้วกดบันทึกลิงก์
+- สิทธิ์: `canManageTeacherPaInSchool`, `isUserInSchool` (lib/auth/scoping.ts)
+
+#### 8.2 SAR ครู และ ID plan ของครู
+- โมเดล `TeacherSarDocument`, `TeacherIdPlan`: ต่อคน/โรงเรียน/ปี
+- API: `/api/extra/teacher-sar`, `/api/extra/teacher-id-plan` (GET/POST, รองรับ forUserId)
+- หน้า `/extra-programs/teacher`: section SAR ครู (อัปโหลด/ลิงก์ GDrive), section ID plan (กรอกรหัสแผน)
+
+#### 8.3 บันทึกการสอนชุมชน
+- โมเดล `CommunityTeachingRecord`: schoolId, userId, academicYear, semester (1 หรือ 2); unique ภาคเรียนละ 1 ฉบับต่อคน
+- ฟิลด์: title, activityDate, location, summary, templateData, fileName, storageType, storagePath, externalUrl; template อ้างอิง docref/pp5.pdf
+- API `GET/POST /api/extra/community-teaching`: รองรับ JSON (บันทึกข้อมูล) และ multipart (ไฟล์หรือ GDRIVE ลิงก์); forUserId
+- หน้า `/extra-programs/community-teaching`: ฟอร์มโรงเรียน/ปี/ภาคเรียน/ครู, ชื่อกิจกรรม/วันที่/สถานที่/สรุป, บล็อกแนบไฟล์หรือลิงก์ GDrive (แบบ PA 1/ส), ลิงก์ดาวน์โหลด template pp5.pdf
+
+#### 8.4 หน้าโปรแกรมเสริมและ Deploy
+- หน้า `/extra-programs`: การ์ดลิงก์ไป PA, SAR/ID plan, บันทึกการสอนชุมชน
+- สคริปต์ `scripts/check-db-tables.ts` และ `.mjs`: ตรวจตารางและคอลัมน์ที่แอปใช้ (รวม pateacherdocument, teachersardocument, teacheridplan, communityteachingrecord); รันด้วย `node scripts/check-db-tables.mjs` หรือ `npm run db:check-tables`
+- เอกสาร deploy: PA_TEACHER_DOCUMENTS_DEPLOY.md, EXTRA_COMMUNITY_TEACHING_DEPLOY.md; SQL: PA_TEACHER_DOCUMENTS_ADD_USERID.sql, EXTRA_TEACHER_SAR_IDPLAN_TABLES.sql, EXTRA_COMMUNITY_TEACHING_TABLE.sql
+- Dockerfile: สร้างโฟลเดอร์ public/uploads/pa-teacher-docs, teacher-sar, community-teaching
+
+### Deliverables
+- ✅ Prisma models: PATeacherDocument, TeacherSarDocument, TeacherIdPlan, CommunityTeachingRecord
+- ✅ API routes: /api/pa/teacher-documents, /api/extra/teacher-sar, /api/extra/teacher-id-plan, /api/extra/community-teaching
+- ✅ หน้า /pa (section PA ครู), /extra-programs/teacher, /extra-programs/community-teaching; การ์ดใน /extra-programs
+- ✅ scripts/check-db-tables.ts, check-db-tables.mjs; npm run db:check-tables
+- ✅ docs: PA_TEACHER_DOCUMENTS_DEPLOY.md, EXTRA_COMMUNITY_TEACHING_DEPLOY.md; SQL สำหรับตารางและ ADD_USERID
+- ✅ Dockerfile โฟลเดอร์ upload ครบ
