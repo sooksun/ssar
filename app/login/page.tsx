@@ -34,16 +34,18 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-24">
+    <div
+      className="flex min-h-screen flex-col items-center justify-center bg-cover bg-center bg-no-repeat p-24"
+      style={{ backgroundImage: 'url(/backgroundsarpp.png)' }}
+    >
       <div className="w-full max-w-md space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold">เข้าสู่ระบบ</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            QA Evidence Center (สมศ.)
-          </p>
-        </div>
-
-        <div className="mt-8 rounded-lg border bg-card p-8 shadow-sm">
+        <div className="rounded-lg border border-white/20 bg-card/95 p-8 shadow-lg backdrop-blur-sm">
+          <div className="mb-6 text-center">
+            <h1 className="text-3xl font-bold">เข้าสู่ระบบ</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              QA Evidence Center (สมศ.)
+            </p>
+          </div>
           {error && (
             <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
               {error}
