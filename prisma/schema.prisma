@@ -755,6 +755,7 @@ enum PAPart {
 enum PAPositionType {
   TEACHER
   PRINCIPAL
+  ASSISTANT_TEACHER /// ครูผู้ช่วย — แบบประเมินแบบเก่า (ว26/2561) ด้านการปฏิบัติตน + ด้านการปฏิบัติงาน
 }
 
 model PAIndicator {
@@ -763,7 +764,7 @@ model PAIndicator {
   aspectId    BigInt
   code        String
   nameTh      String
-  description String?
+  description String?  @db.Text /// รายละเอียด/รายการย่อย (JSON สำหรับแบบเก่า ว26/2561: {maxScore, numSubItems, subItems[]})
   sortNo      Int
   weight      Decimal?  @db.Decimal(5, 2)
 
