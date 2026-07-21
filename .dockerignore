@@ -43,6 +43,9 @@ public/uploads
 *.log
 *.zip
 *.sql
+# ยกเว้น prisma migrations — ต้องอยู่ใน build context ให้ `prisma migrate deploy`
+# หา migration เจอตอน container start (ต้องอยู่หลังกฎ *.sql ด้านบน ลำดับมีผล)
+!prisma/migrations/**/*.sql
 *.xlsx
 docref
 Extracted*
