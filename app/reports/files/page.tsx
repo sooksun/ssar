@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth/nextauth';
+import { getUserSchools } from '@/lib/auth/scoping';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { getPrimaryFiles } from '@/lib/queries/files';
@@ -42,8 +43,8 @@ export default async function PrimaryFilesReportPage({
   }
 
   const user = session.user;
-  const roleSchools: string[] = (user.roles ?? []).map((role) => role.schoolId);
-  const accessibleSchoolIds = Array.from(new Set(roleSchools));
+  // ขอบเขตโรงเรียนต้องผ่าน getUserSchools() เพื่อรวมสิทธิ์ระดับเขต
+  const accessibleSchoolIds = (await getUserSchools(user.id)).map((id) => id.toString());
 
   if (accessibleSchoolIds.length === 0) {
     return (

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/nextauth';
+import { getUserSchools } from '@/lib/auth/scoping';
 import { getPrimaryFiles } from '@/lib/queries/files';
 
 export async function GET(request: Request) {
@@ -12,12 +13,13 @@ export async function GET(request: Request) {
   const schoolParam = url.searchParams.get('schoolId');
   const fiscalYearParam = url.searchParams.get('fiscalYear');
 
-  const roles = session.user.roles ?? [];
-  const accessibleSchoolIds = new Set<string>(roles.map((role) => role.schoolId));
+  // ขอบเขตโรงเรียนต้องผ่าน getUserSchools() เพื่อรวมสิทธิ์ระดับเขต
+  const accessibleSchoolIds = await getUserSchools(session.user.id);
+  const accessibleSet = new Set(accessibleSchoolIds.map((id) => id.toString()));
 
   let targetSchools: bigint[];
   if (schoolParam) {
-    if (!accessibleSchoolIds.has(schoolParam)) {
+    if (!accessibleSet.has(schoolParam)) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
     try {
@@ -26,7 +28,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'invalid schoolId' }, { status: 400 });
     }
   } else {
-    targetSchools = Array.from(accessibleSchoolIds).map((id) => BigInt(id));
+    targetSchools = accessibleSchoolIds;
   }
 
   let fiscalYear: number | undefined;

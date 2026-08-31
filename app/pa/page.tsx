@@ -42,8 +42,9 @@ export default async function PAPage() {
         })
       : [];
 
+  // where ต้องมี schoolId เสมอ — `undefined` เมื่อ schoolIds ว่าง = ดึงข้อตกลง PA ของทุกโรงเรียน
   const agreements = await prisma.pAAgreement.findMany({
-    where: schoolIds.length > 0 ? { schoolId: { in: schoolIds } } : undefined,
+    where: { schoolId: { in: schoolIds } },
     orderBy: [{ fiscalYear: 'desc' }, { updatedAt: 'desc' }],
     include: {
       school: { select: { name: true } },

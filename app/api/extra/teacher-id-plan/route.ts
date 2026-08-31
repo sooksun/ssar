@@ -3,6 +3,23 @@ import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth/nextauth';
 import { canAccessSchool, canManageTeacherPaInSchool, isUserInSchool } from '@/lib/auth/scoping';
 import { prisma } from '@/lib/db';
+import { z } from 'zod';
+import { bigIntIdSchema, parseJsonBody, parseSearchParams, thaiYearSchema } from '@/lib/validations/api';
+
+const idPlanQuerySchema = z.object({
+  schoolId: bigIntIdSchema,
+  academicYear: thaiYearSchema,
+  forUserId: bigIntIdSchema.optional(),
+});
+
+const idPlanBodySchema = z.object({
+  schoolId: bigIntIdSchema,
+  academicYear: thaiYearSchema,
+  idPlanCode: z.string().max(200).optional().default(''),
+  note: z.string().max(5000).optional(),
+  forUserId: bigIntIdSchema.optional(),
+});
+
 
 export const runtime = 'nodejs';
 
@@ -27,22 +44,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const schoolId = searchParams.get('schoolId');
-    const academicYear = searchParams.get('academicYear');
-
-    if (!schoolId || !academicYear) {
-      return NextResponse.json(
-        { success: false, error: 'ต้องระบุ schoolId และ academicYear' },
-        { status: 400 }
-      );
+    const query = parseSearchParams(request.url, idPlanQuerySchema);
+    if (!query.success) {
+      return NextResponse.json({ success: false, error: query.error }, { status: 400 });
     }
-
-    const schoolIdBigInt = BigInt(schoolId);
-    const year = parseInt(academicYear, 10);
-    if (Number.isNaN(year)) {
-      return NextResponse.json({ success: false, error: 'ปีการศึกษาไม่ถูกต้อง' }, { status: 400 });
-    }
+    const schoolIdBigInt = query.data.schoolId;
+    const year = query.data.academicYear;
 
     const hasAccess = await canAccessSchool(BigInt(session.user.id), schoolIdBigInt);
     if (!hasAccess) {
@@ -50,11 +57,11 @@ export async function GET(request: NextRequest) {
     }
 
     let userId = BigInt(session.user.id);
-    const forUserIdParam = searchParams.get('forUserId');
+    const forUserIdParam = query.data.forUserId;
     if (forUserIdParam) {
       const canManage = await canManageTeacherPaInSchool(BigInt(session.user.id), schoolIdBigInt);
       if (canManage) {
-        const targetId = BigInt(forUserIdParam);
+        const targetId = forUserIdParam;
         const inSchool = await isUserInSchool(targetId, schoolIdBigInt);
         if (inSchool) userId = targetId;
       }
@@ -84,25 +91,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const schoolIdRaw = body.schoolId as string;
-    const academicYearRaw = body.academicYear as string | number;
-    const idPlanCode = (body.idPlanCode as string)?.trim() ?? '';
-    const note = (body.note as string)?.trim() || null;
-    const forUserIdRaw = (body.forUserId as string)?.trim();
-
-    if (!schoolIdRaw || !academicYearRaw) {
-      return NextResponse.json(
-        { success: false, error: 'ต้องระบุ schoolId และ academicYear' },
-        { status: 400 }
-      );
+    const parsed = await parseJsonBody(request, idPlanBodySchema);
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: parsed.error }, { status: 400 });
     }
-
-    const schoolId = BigInt(schoolIdRaw);
-    const year = typeof academicYearRaw === 'number' ? academicYearRaw : parseInt(String(academicYearRaw), 10);
-    if (Number.isNaN(year)) {
-      return NextResponse.json({ success: false, error: 'ปีการศึกษาไม่ถูกต้อง' }, { status: 400 });
-    }
+    const schoolId = parsed.data.schoolId;
+    const year = parsed.data.academicYear;
+    const idPlanCode = parsed.data.idPlanCode.trim();
+    const note = parsed.data.note?.trim() || null;
+    const forUserIdRaw = parsed.data.forUserId;
 
     const hasAccess = await canAccessSchool(BigInt(session.user.id), schoolId);
     if (!hasAccess) {
@@ -113,7 +110,7 @@ export async function POST(request: NextRequest) {
     if (forUserIdRaw) {
       const canManage = await canManageTeacherPaInSchool(BigInt(session.user.id), schoolId);
       if (canManage) {
-        const targetId = BigInt(forUserIdRaw);
+        const targetId = forUserIdRaw;
         const inSchool = await isUserInSchool(targetId, schoolId);
         if (inSchool) userId = targetId;
       }

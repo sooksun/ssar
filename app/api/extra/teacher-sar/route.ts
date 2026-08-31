@@ -3,9 +3,27 @@ import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth/nextauth';
 import { canAccessSchool, canManageTeacherPaInSchool, isUserInSchool } from '@/lib/auth/scoping';
 import { prisma } from '@/lib/db';
+import { z } from 'zod';
+import { bigIntIdSchema, parseSearchParams, parseUnknown, thaiYearSchema } from '@/lib/validations/api';
+import { getUploadBaseDir } from '@/lib/uploads-path';
 import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
 import { isAllowedFileType, describeAllowedFileTypes } from '@/lib/file-types';
+
+const sarQuerySchema = z.object({
+  schoolId: bigIntIdSchema,
+  academicYear: thaiYearSchema,
+  forUserId: bigIntIdSchema.optional(),
+});
+
+const sarFormSchema = z.object({
+  schoolId: bigIntIdSchema,
+  academicYear: thaiYearSchema,
+  storageType: z.string().max(20).default('URL'),
+  storagePath: z.string().max(2000).optional(),
+  forUserId: bigIntIdSchema.optional(),
+});
+
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -31,22 +49,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const schoolId = searchParams.get('schoolId');
-    const academicYear = searchParams.get('academicYear');
-
-    if (!schoolId || !academicYear) {
-      return NextResponse.json(
-        { success: false, error: 'ต้องระบุ schoolId และ academicYear' },
-        { status: 400 }
-      );
+    const query = parseSearchParams(request.url, sarQuerySchema);
+    if (!query.success) {
+      return NextResponse.json({ success: false, error: query.error }, { status: 400 });
     }
-
-    const schoolIdBigInt = BigInt(schoolId);
-    const year = parseInt(academicYear, 10);
-    if (Number.isNaN(year)) {
-      return NextResponse.json({ success: false, error: 'ปีการศึกษาไม่ถูกต้อง' }, { status: 400 });
-    }
+    const schoolIdBigInt = query.data.schoolId;
+    const year = query.data.academicYear;
 
     const hasAccess = await canAccessSchool(BigInt(session.user.id), schoolIdBigInt);
     if (!hasAccess) {
@@ -54,7 +62,7 @@ export async function GET(request: NextRequest) {
     }
 
     let userId = BigInt(session.user.id);
-    const forUserIdParam = searchParams.get('forUserId');
+    const forUserIdParam = query.data.forUserId;
     if (forUserIdParam) {
       const canManage = await canManageTeacherPaInSchool(BigInt(session.user.id), schoolIdBigInt);
       if (canManage) {
@@ -95,24 +103,20 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const schoolIdRaw = formData.get('schoolId') as string;
-    const academicYearRaw = formData.get('academicYear') as string;
-    const storageType = ((formData.get('storageType') as string) || 'URL').trim();
-    const storagePath = (formData.get('storagePath') as string)?.trim();
-    const forUserIdRaw = (formData.get('forUserId') as string)?.trim();
-
-    if (!schoolIdRaw || !academicYearRaw) {
-      return NextResponse.json(
-        { success: false, error: 'ต้องระบุ schoolId และ academicYear' },
-        { status: 400 }
-      );
+    const parsed = parseUnknown(sarFormSchema, {
+      schoolId: formData.get('schoolId'),
+      academicYear: formData.get('academicYear'),
+      storageType: ((formData.get('storageType') as string) || 'URL').trim(),
+      storagePath: (formData.get('storagePath') as string)?.trim() || undefined,
+      forUserId: (formData.get('forUserId') as string)?.trim() || undefined,
+    });
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: parsed.error }, { status: 400 });
     }
-
-    const schoolId = BigInt(schoolIdRaw);
-    const year = parseInt(academicYearRaw, 10);
-    if (Number.isNaN(year)) {
-      return NextResponse.json({ success: false, error: 'ปีการศึกษาไม่ถูกต้อง' }, { status: 400 });
-    }
+    const { storageType, storagePath } = parsed.data;
+    const forUserIdRaw = parsed.data.forUserId;
+    const schoolId = parsed.data.schoolId;
+    const year = parsed.data.academicYear;
 
     const hasAccess = await canAccessSchool(BigInt(session.user.id), schoolId);
     if (!hasAccess) {
@@ -123,7 +127,7 @@ export async function POST(request: NextRequest) {
     if (forUserIdRaw) {
       const canManage = await canManageTeacherPaInSchool(BigInt(session.user.id), schoolId);
       if (canManage) {
-        const targetId = BigInt(forUserIdRaw);
+        const targetId = forUserIdRaw;
         const inSchool = await isUserInSchool(targetId, schoolId);
         if (inSchool) userId = targetId;
       }
@@ -182,9 +186,7 @@ export async function POST(request: NextRequest) {
     }
 
     const uploadDir = path.join(
-      process.cwd(),
-      'public',
-      'uploads',
+      getUploadBaseDir(),
       'teacher-sar',
       schoolId.toString(),
       year.toString(),

@@ -3,6 +3,22 @@ import { auth } from '@/lib/auth/nextauth';
 import { canAccessSchool } from '@/lib/auth/scoping';
 import { mapEvidenceToPA, unmapEvidenceFromPA } from '@/lib/pa-utils';
 import { prisma } from '@/lib/db';
+import { z } from 'zod';
+import { bigIntIdSchema, parseJsonBody } from '@/lib/validations/api';
+
+const mappingSchema = z
+  .object({
+    evidenceId: bigIntIdSchema,
+    agreementItemId: bigIntIdSchema.optional(),
+    challengeConsiderationId: bigIntIdSchema.optional(),
+    note: z.string().max(1000).optional(),
+    relevanceLevel: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
+  })
+  .refine((v) => v.agreementItemId !== undefined || v.challengeConsiderationId !== undefined, {
+    message: 'ต้องระบุ agreementItemId หรือ challengeConsiderationId',
+  });
+
+const unmapSchema = z.object({ mappingId: bigIntIdSchema });
 
 /**
  * POST /api/pa/evidence-mapping
@@ -17,21 +33,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const evidenceId = BigInt(body.evidenceId);
-    const agreementItemId = body.agreementItemId ? BigInt(body.agreementItemId) : undefined;
-    const challengeConsiderationId = body.challengeConsiderationId
-      ? BigInt(body.challengeConsiderationId)
-      : undefined;
-    const note = body.note as string | undefined;
-    const relevanceLevel = body.relevanceLevel as 1 | 2 | 3 | 4 | undefined;
-
-    if (!agreementItemId && !challengeConsiderationId) {
-      return NextResponse.json(
-        { error: 'ต้องระบุ agreementItemId หรือ challengeConsiderationId' },
-        { status: 400 }
-      );
+    const parsed = await parseJsonBody(request, mappingSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
+    const { evidenceId, agreementItemId, challengeConsiderationId, note, relevanceLevel } =
+      parsed.data;
 
     const evidence = await prisma.evidence.findUnique({
       where: { id: evidenceId },
@@ -80,11 +87,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
-    const body = await request.json().catch(() => ({}));
-    const mappingId = body.mappingId ? BigInt(body.mappingId) : null;
-    if (!mappingId) {
-      return NextResponse.json({ error: 'ต้องระบุ mappingId' }, { status: 400 });
+    const parsed = await parseJsonBody(request, unmapSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
+    const { mappingId } = parsed.data;
 
     const mapping = await prisma.pAEvidenceMapping.findUnique({
       where: { id: mappingId },

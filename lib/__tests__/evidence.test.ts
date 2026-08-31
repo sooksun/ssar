@@ -1,24 +1,23 @@
 import { describe, it, expect, beforeEach, vi, beforeAll } from 'vitest';
 import { thaiAcademicYear } from '../evidence';
 
-// Mock Prisma Client สำหรับ nextEvidenceCode — ใช้ vi.hoisted เพื่อให้มีค่าก่อน vi.mock ทำงาน
+// Mock Prisma client สำหรับ nextEvidenceCode — ใช้ vi.hoisted เพื่อให้มีค่าก่อน vi.mock ทำงาน
+// mock ที่ '@/lib/db' (singleton ที่โค้ดใช้จริง) ไม่ใช่ constructor ของ '@prisma/client'
 const { mockFindUnique, mockCount } = vi.hoisted(() => ({
   mockFindUnique: vi.fn(),
   mockCount: vi.fn(),
 }));
 
-vi.mock('@prisma/client', () => {
-  return {
-    PrismaClient: vi.fn(() => ({
-      qAIndicator: {
-        findUnique: mockFindUnique,
-      },
-      evidence: {
-        count: mockCount,
-      },
-    })),
-  };
-});
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    qAIndicator: {
+      findUnique: mockFindUnique,
+    },
+    evidence: {
+      count: mockCount,
+    },
+  },
+}));
 
 // Dynamic import สำหรับ nextEvidenceCode หลัง mock
 let nextEvidenceCode: (

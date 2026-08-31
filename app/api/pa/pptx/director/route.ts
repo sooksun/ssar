@@ -17,6 +17,16 @@ import {
   generateDirectorSemesterReportPptx,
   getDirectorSemesterReportPptxFilename,
 } from '@/lib/indicators/pptx-generator';
+import { z } from 'zod';
+import { bigIntIdSchema, parseJsonBody, thaiYearSchema } from '@/lib/validations/api';
+
+const directorPptxSchema = z.object({
+  userId: bigIntIdSchema.optional(),
+  schoolId: bigIntIdSchema.optional(),
+  fiscalYear: thaiYearSchema.optional(),
+  assessmentRound: z.coerce.number().int().min(1).max(4).default(1),
+  useAI: z.boolean().default(false),
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,12 +35,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
-    const body = await request.json().catch(() => ({}));
-    const userId = body.userId ? BigInt(body.userId) : BigInt(session.user.id);
-    const schoolId = body.schoolId ? BigInt(body.schoolId) : null;
-    const fiscalYear = body.fiscalYear ? parseInt(String(body.fiscalYear), 10) : thaiFiscalYear();
-    const assessmentRound = body.assessmentRound ? parseInt(String(body.assessmentRound), 10) : 1;
-    const useAI = body.useAI === true;
+    const parsed = await parseJsonBody(request, directorPptxSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const userId = parsed.data.userId ?? BigInt(session.user.id);
+    const schoolId = parsed.data.schoolId ?? null;
+    const fiscalYear = parsed.data.fiscalYear ?? thaiFiscalYear();
+    const { assessmentRound, useAI } = parsed.data;
 
     const data = await getTeacherPASummary(userId, fiscalYear, 'PRINCIPAL');
     if (!data) {

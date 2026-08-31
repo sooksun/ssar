@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth/nextauth';
+import { getUserSchools } from '@/lib/auth/scoping';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { thaiAcademicYear } from '@/lib/evidence';
@@ -26,9 +27,8 @@ export default async function EvaluationHubPage({
     redirect('/login');
   }
 
-  const roles = session.user.roles ?? [];
-
-  const accessibleSchoolIds = Array.from(new Set(roles.map((role) => role.schoolId)));
+  // ขอบเขตโรงเรียนต้องผ่าน getUserSchools() เพื่อรวมสิทธิ์ระดับเขต (session roles ไม่มี schoolId ของ area role)
+  const accessibleSchoolIds = await getUserSchools(session.user.id);
   if (accessibleSchoolIds.length === 0) {
     return (
       <div className="container mx-auto px-6 py-8">
@@ -40,7 +40,7 @@ export default async function EvaluationHubPage({
 
   const schools = await prisma.school.findMany({
     where: {
-      sc_id: { in: accessibleSchoolIds.map((id) => BigInt(id)) },
+      sc_id: { in: accessibleSchoolIds },
       del: false,
     },
     select: {
@@ -56,15 +56,14 @@ export default async function EvaluationHubPage({
       ? Number(params.fiscalYear)
       : academicYearNow;
 
+  const accessibleSchoolIdStrings = accessibleSchoolIds.map((id) => id.toString());
   const selectedSchoolId =
-    params?.schoolId && accessibleSchoolIds.includes(params.schoolId)
+    params?.schoolId && accessibleSchoolIdStrings.includes(params.schoolId)
       ? params.schoolId
       : 'ALL';
 
   const targetSchools =
-    selectedSchoolId === 'ALL'
-      ? accessibleSchoolIds.map((id) => BigInt(id))
-      : [BigInt(selectedSchoolId)];
+    selectedSchoolId === 'ALL' ? accessibleSchoolIds : [BigInt(selectedSchoolId)];
 
   const [selfEvaluations, externalEvaluations] = await Promise.all([
     prisma.evaluation.findMany({

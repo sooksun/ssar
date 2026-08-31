@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth/nextauth';
+import { getUserSchools } from '@/lib/auth/scoping';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { thaiAcademicYear } from '@/lib/evidence';
@@ -17,41 +18,42 @@ export default async function ReadinessReportPage({
   }
 
   const user = session.user;
-  const roles = user.roles ?? [];
-
-  // ดึง school IDs ที่ user มีสิทธิ์
-  const schoolIds = roles.map((role) => BigInt(role.schoolId));
+  // ดึง school IDs ที่ user มีสิทธิ์ (รวมสิทธิ์ระดับเขต)
+  const schoolIds = await getUserSchools(user.id);
 
   // ใช้ปีการศึกษาปัจจุบัน
   const currentAcademicYear = thaiAcademicYear();
 
-  // ดึงมาตรฐานทั้งหมด (สำหรับทุก level)
-  const standards = await prisma.qAStandard.findMany({
-    include: {
-      level: true,
-      indicators: {
-        include: {
-          evidence: {
-            where: {
-              schoolId: {
-                in: schoolIds,
-              },
-              fiscalYear: currentAcademicYear,
-              del: false,
-            },
-          },
-        },
+  // ดึงโครงมาตรฐาน (master data) + นับสถานะหลักฐานแบบ aggregate ที่ DB
+  // เดิม include หลักฐานทุกแถวซ้อนใน indicators ทำให้ payload โตตามจำนวนหลักฐานทั้งระบบ
+  const [standards, statusByIndicator] = await Promise.all([
+    prisma.qAStandard.findMany({
+      include: {
+        level: true,
+        indicators: { select: { id: true } },
       },
-    },
-    orderBy: [
-      {
-        levelId: 'asc',
+      orderBy: [{ levelId: 'asc' }, { sortNo: 'asc' }],
+    }),
+    prisma.evidence.groupBy({
+      by: ['indicatorId', 'status'],
+      _count: { _all: true },
+      where: {
+        schoolId: { in: schoolIds },
+        fiscalYear: currentAcademicYear,
+        del: false,
       },
-      {
-        sortNo: 'asc',
-      },
-    ],
-  });
+    }),
+  ]);
+
+  // indicatorId -> เซ็ตของสถานะที่พบ (พอสำหรับเกณฑ์ "มีอย่างน้อย 1 ชิ้นที่ READY/APPROVED")
+  const statusesByIndicator = new Map<string, Set<string>>();
+  for (const row of statusByIndicator) {
+    if ((row._count?._all ?? 0) === 0) continue;
+    const key = row.indicatorId.toString();
+    const set = statusesByIndicator.get(key) ?? new Set<string>();
+    set.add(row.status);
+    statusesByIndicator.set(key, set);
+  }
 
   // คำนวณความพร้อมต่อมาตรฐาน
   const readinessData = standards.map((standard) => {
@@ -60,15 +62,10 @@ export default async function ReadinessReportPage({
     let approvedCount = 0;
 
     standard.indicators.forEach((indicator) => {
-      const evidence = indicator.evidence;
-      if (evidence.length > 0) {
-        const hasReady = evidence.some(
-          (e) => e.status === 'READY' || e.status === 'APPROVED'
-        );
-        const hasApproved = evidence.some((e) => e.status === 'APPROVED');
-        if (hasReady) readyCount++;
-        if (hasApproved) approvedCount++;
-      }
+      const statuses = statusesByIndicator.get(indicator.id.toString());
+      if (!statuses) return;
+      if (statuses.has('READY') || statuses.has('APPROVED')) readyCount++;
+      if (statuses.has('APPROVED')) approvedCount++;
     });
 
     const percentage =

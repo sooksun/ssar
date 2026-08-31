@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth/nextauth';
+import { getUserSchools } from '@/lib/auth/scoping';
 import { redirect, notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import Link from 'next/link';
@@ -23,7 +24,7 @@ export default async function EvidenceDetailPage({
 
   const user = session.user;
   const roles = user.roles ?? [];
-  const schoolIds = roles.map((role) => BigInt(role.schoolId));
+  const schoolIds = await getUserSchools(user.id);
   const currentUserName = user?.name || 'ไม่ระบุ';
   const primaryRole = roles[0];
   const currentUserOrg =

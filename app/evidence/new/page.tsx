@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth/nextauth';
+import { getUserSchools } from '@/lib/auth/scoping';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { thaiAcademicYear, thaiFiscalYear } from '@/lib/evidence';
@@ -27,8 +28,8 @@ export default async function NewEvidencePage({
   // Await searchParams ก่อนใช้งาน (Next.js 15 requirement)
   const params = await searchParams;
 
-  // ดึงโรงเรียนที่ user มีสิทธิ์
-  const schoolIds = roles.map((role) => BigInt(role.schoolId));
+  // ดึงโรงเรียนที่ user มีสิทธิ์ (รวมสิทธิ์ระดับเขต)
+  const schoolIds = await getUserSchools(user.id);
   const schoolsRaw = await prisma.school.findMany({
     where: {
       sc_id: {

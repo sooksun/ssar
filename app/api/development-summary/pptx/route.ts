@@ -12,6 +12,15 @@ import {
   generateDevelopmentSummaryPptx,
   getPptxFilename,
 } from '@/lib/indicators/pptx-generator';
+import { z } from 'zod';
+import { bigIntIdSchema, parseJsonBody, thaiYearSchema } from '@/lib/validations/api';
+
+const pptxSchema = z.object({
+  schoolId: bigIntIdSchema,
+  userId: bigIntIdSchema.optional(),
+  fiscalYear: thaiYearSchema,
+  assessmentRound: z.coerce.number().int().min(1).max(4).default(1),
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,18 +29,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
-    const body = await request.json().catch(() => ({}));
-    const schoolId = body.schoolId ? BigInt(body.schoolId) : null;
-    const userId = body.userId ? BigInt(body.userId) : BigInt(session.user.id);
-    const fiscalYear = body.fiscalYear ? parseInt(String(body.fiscalYear), 10) : null;
-    const assessmentRound = body.assessmentRound ? parseInt(String(body.assessmentRound), 10) : 1;
-
-    if (!schoolId || !fiscalYear) {
-      return NextResponse.json(
-        { error: 'ต้องระบุ schoolId และ fiscalYear' },
-        { status: 400 }
-      );
+    const parsed = await parseJsonBody(request, pptxSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
+    const { schoolId, fiscalYear, assessmentRound } = parsed.data;
+    const userId = parsed.data.userId ?? BigInt(session.user.id);
 
     const hasAccess = await canAccessSchool(BigInt(session.user.id), schoolId);
     if (!hasAccess) {
