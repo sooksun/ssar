@@ -31,6 +31,42 @@ function getGenAI() {
   return new GoogleGenerativeAI(key);
 }
 
+/** เพดานขนาดไฟล์ที่ส่ง inline ให้ Gemini — ต่ำกว่าขีดจำกัด ~20MB ของ API เผื่อ overhead ของ base64 + prompt */
+export const MAX_INLINE_FILE_BYTES = 15 * 1024 * 1024;
+
+/** ชนิดไฟล์ที่ส่ง inline ได้ — วิดีโอต้องผ่าน Files API ซึ่งยังไม่รองรับในระบบนี้ */
+const INLINE_ANALYZABLE_MIME_PREFIXES = ['image/'];
+const INLINE_ANALYZABLE_MIME_EXACT = new Set(['application/pdf']);
+
+/**
+ * ตรวจว่าไฟล์ส่งให้ Gemini แบบ inline ได้หรือไม่ ก่อนอ่านเข้าหน่วยความจำ
+ * โยน Error พร้อมข้อความภาษาไทยเมื่อไม่ผ่าน — ผู้เรียกต้องแปลงเป็น response ให้ผู้ใช้
+ */
+export function assertFileAnalyzable(filePath: string, mimeType: string): void {
+  const normalized = (mimeType || '').toLowerCase();
+  const supported =
+    INLINE_ANALYZABLE_MIME_EXACT.has(normalized) ||
+    INLINE_ANALYZABLE_MIME_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+
+  if (!supported) {
+    throw new Error(
+      `ไม่รองรับการวิเคราะห์ไฟล์ชนิด ${mimeType || 'ไม่ทราบชนิด'} ด้วย AI — รองรับเฉพาะรูปภาพและ PDF`
+    );
+  }
+
+  let size: number;
+  try {
+    size = fs.statSync(filePath).size;
+  } catch {
+    throw new Error('ไม่พบไฟล์สำหรับวิเคราะห์');
+  }
+
+  if (size > MAX_INLINE_FILE_BYTES) {
+    const limitMb = Math.floor(MAX_INLINE_FILE_BYTES / (1024 * 1024));
+    throw new Error(`ไฟล์ใหญ่เกินขีดจำกัดการวิเคราะห์ด้วย AI (สูงสุด ${limitMb} MB)`);
+  }
+}
+
 function fileToBase64Part(filePath: string, mimeType: string): Part {
   const data = fs.readFileSync(filePath);
   return {
@@ -150,6 +186,7 @@ export async function analyzeEvidenceFile(params: {
   const parts: Part[] = [];
 
   if (fs.existsSync(absolutePath)) {
+    assertFileAnalyzable(absolutePath, params.mimeType);
     parts.push(fileToBase64Part(absolutePath, params.mimeType));
   }
 

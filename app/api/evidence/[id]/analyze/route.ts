@@ -71,12 +71,19 @@ export async function POST(
           : null);
 
       if (filePathForAnalysis) {
-        result = await analyzeEvidenceFile({
-          filePath: filePathForAnalysis,
-          mimeType: firstFile!.mimeType ?? 'application/octet-stream',
-          title: evidence.title,
-          description: evidence.description ?? undefined,
-        });
+        try {
+          result = await analyzeEvidenceFile({
+            filePath: filePathForAnalysis,
+            mimeType: firstFile!.mimeType ?? 'application/octet-stream',
+            title: evidence.title,
+            description: evidence.description ?? undefined,
+          });
+        } catch (error) {
+          console.error('[api/evidence/analyze] file analysis rejected:', error);
+          const message =
+            error instanceof Error ? error.message : 'ไม่สามารถวิเคราะห์ไฟล์นี้ได้';
+          return NextResponse.json({ error: message }, { status: 422 });
+        }
       } else if (firstFile?.externalUrl) {
         result = await analyzeEvidenceUrl({
           url: firstFile.externalUrl,
