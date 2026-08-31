@@ -41,6 +41,39 @@ npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/
 
 ต้องได้ `No difference detected.`
 
+## สคริปต์ช่วย (แนะนำให้ใช้แทนการรัน SQL เอง)
+
+`scripts/prod-baseline.mjs` ทำขั้นที่ 1 ให้ พร้อมตรวจความเสี่ยงก่อนเสมอ
+อ่าน `DATABASE_URL` จาก environment — ไม่ต้องใส่รหัสผ่านใน argument
+
+```bash
+export DATABASE_URL="mysql://<user>:<pass>@192.168.1.4:3306/qa_external?schema=public&authPlugin=mysql_native_password"
+```
+
+```bash
+node scripts/prod-baseline.mjs
+```
+
+รายงานที่ได้: ต่อกับฐานไหน · จำนวนตาราง · สถานะ `_prisma_migrations` ·
+แผนว่าจะลบ/rename กี่แถว · และ**ตรวจความเสี่ยงข้อมูลถูกตัด**โดยอ่านจาก
+`prisma migrate diff` จริง (ไม่ใช่รายชื่อตายตัว) — ถ้าเจอคอลัมน์ที่จะโดนบีบเป็น
+`VARCHAR(n)` ทั้งที่มีข้อมูลยาวกว่านั้น สคริปต์จะ**ปฏิเสธไม่ยอมทำงานต่อ**
+
+เมื่อ dry run ดูโอเคแล้ว และ**สำรองฐานข้อมูลทั้งก้อนแล้ว**:
+
+```bash
+docker run --rm mariadb:11 mariadb-dump -h 192.168.1.4 -u <user> -p<pass> qa_external > backup-$(date +%F).sql
+```
+
+```bash
+node scripts/prod-baseline.mjs --apply --i-have-a-backup
+```
+
+สคริปต์แตะเฉพาะตาราง `_prisma_migrations` เท่านั้น ไม่ CREATE/ALTER/DROP ตารางข้อมูลใด ๆ
+และรันซ้ำได้ปลอดภัย (idempotent) จากนั้นทำขั้นที่ 2–5 ต่อตามด้านล่าง
+
+---
+
 ## ฐานข้อมูลที่มีอยู่แล้ว (dev เครื่องเดิม + prod ปัจจุบัน) — ต้องทำก่อน deploy รอบถัดไป
 
 ฐานข้อมูลเหล่านี้มีตารางครบอยู่แล้ว และมี `_prisma_migrations` บันทึกด้วย **ชื่อเดิม**
