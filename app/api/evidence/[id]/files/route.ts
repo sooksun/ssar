@@ -18,6 +18,7 @@ import {
   MAX_FILE_SIZE_BYTES,
   VIDEO_MAX_SIZE_MB,
 } from '@/lib/file-types';
+import { writeUploadedFile } from '@/lib/file-stream';
 import { processImage } from '@/lib/image-process';
 import { generateVideoThumbnail } from '@/lib/video-thumbnail';
 
@@ -315,14 +316,13 @@ export async function POST(
       }
 
       // กรณีวิดีโอหรือไฟล์อื่น: เก็บทีละไฟล์ (PRD: ชื่อมาตรฐาน UUID + extension)
+      // เขียนแบบ stream — วิดีโอถึง 1000MB จึงไม่ถูกโหลดเข้า heap ทั้งก้อน
       for (let index = 0; index < filesToProcess.length; index += 1) {
         const f = filesToProcess[index];
-        const arrayBuffer = await f.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
         const ext = getExtension(f.name) || 'bin';
         const standardName = `${randomUUID()}.${ext}`;
         const filePath = path.join(uploadDir, standardName);
-        await writeFile(filePath, buffer);
+        await writeUploadedFile(f, filePath);
 
         const urlPath = `/uploads/evidence/${evId.toString()}/${folderName}/${standardName}`;
         const baseName = raw.fileName

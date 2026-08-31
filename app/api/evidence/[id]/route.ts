@@ -7,6 +7,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/nextauth';
 import { canAccessSchool } from '@/lib/auth/scoping';
 import { prisma } from '@/lib/db';
+import { z } from 'zod';
+import { bigIntIdSchema, parseJsonBody, parseUnknown } from '@/lib/validations/api';
+
+const updateEvidenceSchema = z.object({
+  indicatorCodes: z.array(z.string().max(50)).max(50).optional(),
+  evidenceType: z.string().max(100).optional(),
+  aiSummary: z.string().max(20000).optional(),
+  aiKeywords: z.array(z.string().max(200)).max(100).optional(),
+  aiQualityCheck: z.record(z.string(), z.unknown()).optional(),
+  aiSuggestions: z.string().max(20000).optional(),
+  pdpaChecked: z.boolean().optional(),
+  pdpaRiskLevel: z.string().max(50).optional(),
+});
 
 export async function PATCH(
   request: NextRequest,
@@ -19,7 +32,11 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const evidenceId = BigInt(id);
+    const parsedId = parseUnknown(bigIntIdSchema, id);
+    if (!parsedId.success) {
+      return NextResponse.json({ error: parsedId.error }, { status: 400 });
+    }
+    const evidenceId = parsedId.data;
 
     const evidence = await prisma.evidence.findUnique({
       where: { id: evidenceId },
@@ -34,7 +51,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขหลักฐานนี้' }, { status: 403 });
     }
 
-    const body = await request.json().catch(() => ({}));
+    const parsedBody = await parseJsonBody(request, updateEvidenceSchema);
+    if (!parsedBody.success) {
+      return NextResponse.json({ error: parsedBody.error }, { status: 400 });
+    }
+    const body = parsedBody.data;
 
     const updateData: {
       indicatorCodes?: string[];
@@ -48,15 +69,14 @@ export async function PATCH(
       updatedBy?: bigint;
     } = {};
 
-    if (Array.isArray(body.indicatorCodes)) updateData.indicatorCodes = body.indicatorCodes;
-    if (typeof body.evidenceType === 'string') updateData.evidenceType = body.evidenceType;
-    if (typeof body.aiSummary === 'string') updateData.aiSummary = body.aiSummary;
-    if (Array.isArray(body.aiKeywords)) updateData.aiKeywords = body.aiKeywords;
-    if (body.aiQualityCheck && typeof body.aiQualityCheck === 'object')
-      updateData.aiQualityCheck = body.aiQualityCheck;
-    if (typeof body.aiSuggestions === 'string') updateData.aiSuggestions = body.aiSuggestions;
-    if (typeof body.pdpaChecked === 'boolean') updateData.pdpaChecked = body.pdpaChecked;
-    if (typeof body.pdpaRiskLevel === 'string') updateData.pdpaRiskLevel = body.pdpaRiskLevel;
+    if (body.indicatorCodes !== undefined) updateData.indicatorCodes = body.indicatorCodes;
+    if (body.evidenceType !== undefined) updateData.evidenceType = body.evidenceType;
+    if (body.aiSummary !== undefined) updateData.aiSummary = body.aiSummary;
+    if (body.aiKeywords !== undefined) updateData.aiKeywords = body.aiKeywords;
+    if (body.aiQualityCheck !== undefined) updateData.aiQualityCheck = body.aiQualityCheck;
+    if (body.aiSuggestions !== undefined) updateData.aiSuggestions = body.aiSuggestions;
+    if (body.pdpaChecked !== undefined) updateData.pdpaChecked = body.pdpaChecked;
+    if (body.pdpaRiskLevel !== undefined) updateData.pdpaRiskLevel = body.pdpaRiskLevel;
 
     updateData.updatedBy = BigInt(session.user.id);
 

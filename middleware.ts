@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth/nextauth';
+import { checkRateLimit, clientKeyFrom } from '@/lib/rate-limit';
 
 type RbacRule = {
   pattern: RegExp;
@@ -8,13 +9,14 @@ type RbacRule = {
   methods?: string[];
 };
 
+// หมายเหตุ: '/uploads' และ '/api/serve-upload' **ไม่ใช่** public — เป็นไฟล์หลักฐานรายโรงเรียน
+// การตรวจสิทธิ์ทำใน app/api/serve-upload/[...path]/route.ts (auth + canAccessUploadPath)
 const PUBLIC_PATH_PREFIXES = [
   '/login',
   '/api/auth',
   '/_next',
   '/favicon.ico',
   '/public',
-  '/uploads',
   '/manifest.json',
   '/icon.png',
 ];
@@ -58,6 +60,48 @@ const RBAC_RULES: RbacRule[] = [
   { pattern: /^\/api\/reviews(\/|$)/, allowedRoles: ['ADMIN', 'QA_LEAD', 'ASSESSOR'] },
 ];
 
+/**
+ * เพดานจำนวนคำขอต่อ IP — ใช้กับเส้นทางที่ถูกยิงซ้ำได้/แพง
+ * ลำดับสำคัญ: entry แรกที่ pattern ตรงจะถูกใช้
+ */
+const RATE_LIMITS: Array<{
+  pattern: RegExp;
+  limit: number;
+  windowMs: number;
+  bucket: string;
+}> = [
+  // brute-force login / การขอและตรวจ token ของโปรแกรมเสริม
+  { pattern: /^\/api\/auth\/(callback|signin|token|verify)(\/|$)/, limit: 20, windowMs: 60_000, bucket: 'auth' },
+  // งานแพง: เรียก AI และ generate PPTX
+  { pattern: /^\/api\/evidence\/[^/]+\/analyze(\/|$)/, limit: 10, windowMs: 5 * 60_000, bucket: 'ai' },
+  { pattern: /\/pptx(\/|$)/, limit: 10, windowMs: 5 * 60_000, bucket: 'pptx' },
+];
+
+function enforceRateLimit(request: NextRequest): NextResponse | null {
+  const { pathname } = request.nextUrl;
+  const rule = RATE_LIMITS.find((r) => r.pattern.test(pathname));
+  if (!rule) return null;
+
+  const result = checkRateLimit(
+    clientKeyFrom(request.headers, rule.bucket),
+    rule.limit,
+    rule.windowMs
+  );
+  if (result.allowed) return null;
+
+  return NextResponse.json(
+    { error: 'มีคำขอถี่เกินไป กรุณารอสักครู่แล้วลองใหม่' },
+    {
+      status: 429,
+      headers: {
+        'Retry-After': String(result.retryAfterSeconds),
+        'X-RateLimit-Limit': String(result.limit),
+        'X-RateLimit-Remaining': '0',
+      },
+    }
+  );
+}
+
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
@@ -85,6 +129,12 @@ export default auth(async function middleware(request) {
   const { nextUrl } = request;
   const pathname = nextUrl.pathname;
   const session = request.auth;
+
+  // จำกัดอัตราคำขอก่อนทุกอย่าง — รวมถึงเส้นทาง public เช่น /api/auth (จุดที่ถูก brute-force)
+  const rateLimited = enforceRateLimit(request);
+  if (rateLimited) {
+    return rateLimited;
+  }
 
   // Skip middleware สำหรับ POST requests ที่มี multipart/form-data (file uploads)
   // เพื่อหลีกเลี่ยงปัญหา "Unexpected end of form" เมื่อ body size ใหญ่
@@ -142,9 +192,13 @@ export default auth(async function middleware(request) {
 });
 
 export const config = {
-  // Exclude API routes สำหรับ file uploads จาก middleware เพื่อป้องกันปัญหา body consumed
+  // ยกเว้นเฉพาะ static asset ของ Next, และเส้นทางไฟล์ที่ "ตรวจสิทธิ์เองในโค้ด route" เท่านั้น:
+  //  - uploads/ + api/serve-upload/ → ตรวจใน serve-upload route (auth + canAccessUploadPath)
+  //  - api/evidence/<id>/files      → ต้องยกเว้นเพื่อไม่ให้ middleware อ่าน body ของ multipart ไปก่อน
+  // เดิมยกเว้น "ทุก path ที่ลงท้ายด้วย .png/.pdf/.mp4/..." ซึ่งทำให้ route ใดก็ตามที่ลงท้ายนามสกุลเหล่านี้
+  // ข้าม RBAC ทั้งหมด — ตัดทิ้งแล้ว
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|uploads|api/evidence/.*/files|.*\\.(?:png|jpg|jpeg|gif|webp|mp4|webm|mov|avi|pdf)).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|icon\\.png|manifest\\.json|uploads/|api/serve-upload/|api/evidence/[^/]+/files).*)',
   ],
 };
 

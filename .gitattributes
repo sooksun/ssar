@@ -1,0 +1,5 @@
+# Force LF line endings for shell scripts regardless of platform checkout settings.
+# Without this, a Windows clone with core.autocrlf=true renormalizes .sh files to
+# CRLF, turning `#!/bin/sh` into `#!/bin/sh\r` — which fails as a bad interpreter
+# inside Linux Docker containers (see docker-entrypoint.sh, run at container start).
+*.sh text eol=lf

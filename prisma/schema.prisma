@@ -10,14 +10,14 @@ datasource db {
 
 /// สำนักงานเขตพื้นที่การศึกษา (สพป./สพม.) — รองรับหลายสังกัด และทุกโรงเรียนในสพฐ.
 model EducationServiceArea {
-  id        BigInt   @id @default(autoincrement())
-  code      String   @unique // รหัสเขต เช่น ภาค 1, กทม.1
-  nameTh    String   // ชื่อเขตพื้นที่
+  id        BigInt         @id @default(autoincrement())
+  code      String         @unique // รหัสเขต เช่น ภาค 1, กทม.1
+  nameTh    String // ชื่อเขตพื้นที่
   province  String?
-  sortNo    Int      @default(0)
-  del       Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  sortNo    Int            @default(0)
+  del       Boolean        @default(false)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
   schools   School[]
   userRoles UserAreaRole[]
 
@@ -25,41 +25,41 @@ model EducationServiceArea {
 }
 
 model School {
-  id                   BigInt                @id @default(autoincrement())
-  sc_id                BigInt                @unique
-  name                 String
-  area                 EducationServiceArea? @relation(fields: [areaId], references: [id])
-  areaId               BigInt?               // สังกัดเขตพื้นที่ (รองรับหลายสังกัด/สพฐ.)
-  area_name            String?               // เก็บชื่อเดิมถ้าไม่มี areaId (backward compat)
-  province             String?
-  level_type           String?
-  del                  Boolean               @default(false)
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  users                UserSchoolRole[]
-  primaryUsers         User[]                @relation("PrimarySchool")
-  evidence             Evidence[]
-  evidenceFiles        EvidenceFile[]
-  evidenceReviews      EvidenceReview[]
-  sarReports           SarReport[]
-  external             ExternalAssessment[]
-  evaluations          Evaluation[]
-  externalEvaluations  ExternalEvaluation[]
-  auditLogs            AuditLog[]
-  selfAssessmentScopes SelfAssessmentScope[]
-  teachingMedia        TeachingMedia[]
-  teachingMediaFiles   TeachingMediaFile[]
-  lessonPlans          LessonPlan[]
-  lessonPlanFiles      LessonPlanFile[]
-  paAgreements         PAAgreement[]
-  paSummaries          PASummary[]
-  paTeacherDocuments   PATeacherDocument[]
-  teacherSarDocuments  TeacherSarDocument[]
-  teacherIdPlans       TeacherIdPlan[]
+  id                       BigInt                    @id @default(autoincrement())
+  sc_id                    BigInt                    @unique
+  name                     String
+  area                     EducationServiceArea?     @relation(fields: [areaId], references: [id])
+  areaId                   BigInt? // สังกัดเขตพื้นที่ (รองรับหลายสังกัด/สพฐ.)
+  area_name                String? // เก็บชื่อเดิมถ้าไม่มี areaId (backward compat)
+  province                 String?
+  level_type               String?
+  del                      Boolean                   @default(false)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  users                    UserSchoolRole[]
+  primaryUsers             User[]                    @relation("PrimarySchool")
+  evidence                 Evidence[]
+  evidenceFiles            EvidenceFile[]
+  evidenceReviews          EvidenceReview[]
+  sarReports               SarReport[]
+  external                 ExternalAssessment[]
+  evaluations              Evaluation[]
+  externalEvaluations      ExternalEvaluation[]
+  auditLogs                AuditLog[]
+  selfAssessmentScopes     SelfAssessmentScope[]
+  teachingMedia            TeachingMedia[]
+  teachingMediaFiles       TeachingMediaFile[]
+  lessonPlans              LessonPlan[]
+  lessonPlanFiles          LessonPlanFile[]
+  paAgreements             PAAgreement[]
+  paSummaries              PASummary[]
+  paTeacherDocuments       PATeacherDocument[]
+  teacherSarDocuments      TeacherSarDocument[]
+  teacherIdPlans           TeacherIdPlan[]
   communityTeachingRecords CommunityTeachingRecord[]
-  developmentSummaries DevelopmentSummary[]
-  projects             Project[]
-  projectFiles         ProjectFile[]
+  developmentSummaries     DevelopmentSummary[]
+  projects                 Project[]
+  projectFiles             ProjectFile[]
 
   @@index([areaId])
   @@map("school")
@@ -67,36 +67,36 @@ model School {
 
 /// บทบาทผู้ใช้: ระดับโรงเรียน (TEACHER, SCHOOL_DIRECTOR, SCHOOL_ADMIN) ระดับเขต (AREA_HEAD_OFFICE, AREA_ADMIN) + ADMIN, QA_LEAD, ASSESSOR
 model Role {
-  id           BigInt           @id @default(autoincrement())
-  code         String           @unique
-  name         String
-  users        UserSchoolRole[]
+  id            BigInt           @id @default(autoincrement())
+  code          String           @unique
+  name          String
+  users         UserSchoolRole[]
   userAreaRoles UserAreaRole[]
 
   @@map("role")
 }
 
 model User {
-  id            BigInt           @id @default(autoincrement())
-  fullName      String
-  email         String           @unique
-  password      String?          // Credentials (bcrypt)
-  phone         String?
-  del           Boolean          @default(false)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  primarySchool School?          @relation("PrimarySchool", fields: [schoolId], references: [sc_id])
-  schoolId      BigInt?
-  schoolRoles   UserSchoolRole[]
-  areaRoles     UserAreaRole[]
-  evidenceOwned Evidence[]       @relation("Owner")
-  evidenceFiles EvidenceFile[]   @relation("Uploader")
-  reviews       EvidenceReview[] @relation("Reviewer")
-  audits        AuditLog[]       @relation("Actor")
-  projectsResponsible Project[]  @relation("ProjectResponsible")
-  paTeacherDocuments PATeacherDocument[] @relation("PATeacherDocumentOwner")
-  teacherSarDocuments TeacherSarDocument[] @relation("TeacherSarDocumentOwner")
-  teacherIdPlans      TeacherIdPlan[]     @relation("TeacherIdPlanOwner")
+  id                       BigInt                    @id @default(autoincrement())
+  fullName                 String
+  email                    String                    @unique
+  password                 String? // Credentials (bcrypt)
+  phone                    String?
+  del                      Boolean                   @default(false)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  primarySchool            School?                   @relation("PrimarySchool", fields: [schoolId], references: [sc_id])
+  schoolId                 BigInt?
+  schoolRoles              UserSchoolRole[]
+  areaRoles                UserAreaRole[]
+  evidenceOwned            Evidence[]                @relation("Owner")
+  evidenceFiles            EvidenceFile[]            @relation("Uploader")
+  reviews                  EvidenceReview[]          @relation("Reviewer")
+  audits                   AuditLog[]                @relation("Actor")
+  projectsResponsible      Project[]                 @relation("ProjectResponsible")
+  paTeacherDocuments       PATeacherDocument[]       @relation("PATeacherDocumentOwner")
+  teacherSarDocuments      TeacherSarDocument[]      @relation("TeacherSarDocumentOwner")
+  teacherIdPlans           TeacherIdPlan[]           @relation("TeacherIdPlanOwner")
   communityTeachingRecords CommunityTeachingRecord[] @relation("CommunityTeachingRecordOwner")
 
   @@map("user")
@@ -121,16 +121,16 @@ model UserSchoolRole {
 
 /// บทบาทระดับเขตพื้นที่: Area_head_office / Area_admin เห็นทุกโรงเรียนในเขต (รองรับหลายสังกัด สพฐ.)
 model UserAreaRole {
-  id        BigInt                @id @default(autoincrement())
-  user      User                  @relation(fields: [userId], references: [id])
+  id        BigInt               @id @default(autoincrement())
+  user      User                 @relation(fields: [userId], references: [id])
   userId    BigInt
-  area      EducationServiceArea  @relation(fields: [areaId], references: [id])
+  area      EducationServiceArea @relation(fields: [areaId], references: [id])
   areaId    BigInt
-  role      Role                  @relation(fields: [roleId], references: [id])
+  role      Role                 @relation(fields: [roleId], references: [id])
   roleId    BigInt
-  isActive  Boolean               @default(true)
-  createdAt DateTime              @default(now())
-  updatedAt DateTime              @updatedAt
+  isActive  Boolean              @default(true)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
 
   @@unique([userId, areaId])
   @@index([areaId])
@@ -221,32 +221,36 @@ model Evidence {
   externalEvaluations ExternalEvaluation[]
   paMappings          PAEvidenceMapping[]
   /// หลักฐาน 1 ชิ้นเชื่อมโยงกับตัวชี้วัดได้หลายมุมมอง (ปฐมวัย / ขั้นพื้นฐาน / ครูผู้ช่วย)
-  indicatorMappings    EvidenceIndicatorMapping[]
+  indicatorMappings   EvidenceIndicatorMapping[]
   // PRD: indicatorCodes, evidenceType, AI, PDPA
-  indicatorCodes      Json?    // รหัสตัวชี้วัดเพิ่มเติม เช่น ["1.1","2.1"]
-  evidenceType        String?  // LESSON_PLAN, TEACHING_MEDIA, ASSESSMENT, STUDENT_WORK, CLASSROOM_PHOTO, REFLECTION, ACTION_RESEARCH, OTHER
-  aiSummary           String?  @db.Text // สรุปเนื้อหา (จาก AI) — เก็บข้อความยาวได้
-  aiKeywords          Json?    // คำสำคัญ (จาก AI)
-  aiQualityCheck      Json?    // ตรวจคุณภาพเบื้องต้น (จาก AI)
-  aiSuggestions       String?  @db.Text // ข้อเสนอแนะปรับปรุง (จาก AI)
+  indicatorCodes      Json? // รหัสตัวชี้วัดเพิ่มเติม เช่น ["1.1","2.1"]
+  evidenceType        String? // LESSON_PLAN, TEACHING_MEDIA, ASSESSMENT, STUDENT_WORK, CLASSROOM_PHOTO, REFLECTION, ACTION_RESEARCH, OTHER
+  aiSummary           String?                      @db.Text // สรุปเนื้อหา (จาก AI) — เก็บข้อความยาวได้
+  aiKeywords          Json? // คำสำคัญ (จาก AI)
+  aiQualityCheck      Json? // ตรวจคุณภาพเบื้องต้น (จาก AI)
+  aiSuggestions       String?                      @db.Text // ข้อเสนอแนะปรับปรุง (จาก AI)
   pdpaChecked         Boolean? // ตรวจ PDPA (ถ้าเปิดใช้)
-  pdpaRiskLevel       String?  // ระดับความเสี่ยง PDPA
+  pdpaRiskLevel       String? // ระดับความเสี่ยง PDPA
 
   @@index([schoolId, fiscalYear, indicatorId, status])
   @@index([schoolId, academicYear, indicatorId, status])
+  // รองรับหน้ารายการหลักฐาน: WHERE schoolId IN (...) AND del = false ORDER BY createdAt DESC
+  @@index([schoolId, del, createdAt])
+  // รองรับการนับตามตัวชี้วัด/สถานะ (dashboard + รายงานความพร้อม)
+  @@index([indicatorId, status])
   @@map("evidence")
 }
 
 /// การเชื่อมโยงหลักฐานกับตัวชี้วัดหลายมุมมอง — หลักฐาน 1 ชิ้นวิเคราะห์เชื่อมโยงได้ทั้ง ปฐมวัย / ขั้นพื้นฐาน / ครูผู้ช่วย
 model EvidenceIndicatorMapping {
-  id          BigInt        @id @default(autoincrement())
-  evidence    Evidence      @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  id          BigInt      @id @default(autoincrement())
+  evidence    Evidence    @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
   evidenceId  BigInt
-  indicator   QAIndicator   @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  indicator   QAIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
   indicatorId BigInt
-  reason      String?       // เหตุผล/หมายเหตุ (จาก AI หรือผู้ใช้)
-  source      String?       // AI | USER
-  createdAt   DateTime      @default(now())
+  reason      String? // เหตุผล/หมายเหตุ (จาก AI หรือผู้ใช้)
+  source      String? // AI | USER
+  createdAt   DateTime    @default(now())
 
   @@unique([evidenceId, indicatorId])
   @@index([evidenceId])
@@ -390,37 +394,37 @@ enum SarStatus {
 
 /// PRD 2.5: สรุปผลพัฒนาอย่างเข้ม — รองรับหลายปีการศึกษา รายงานภาคเรียนละ 1 ครั้ง (assessmentRound 1=ภาค 1, 2=ภาค 2 ต่อปี)
 model DevelopmentSummary {
-  id                   BigInt   @id @default(autoincrement())
-  school               School   @relation(fields: [schoolId], references: [sc_id])
-  schoolId             BigInt
-  userId               BigInt   // ครู/ผู้รับการประเมิน
-  fiscalYear           Int      // ปีงบประมาณ (ใช้ต่อเนื่องหลายปี)
-  assessmentRound      Int      @default(1) // ภาคเรียน: 1 = ภาค 1, 2 = ภาค 2 (ต่อปี) — รายงานสรุปภาคเรียนละ 1 ครั้ง
-  overallScore         Decimal? @db.Decimal(5, 2)
-  overallPassed        Boolean?
-  professionalScore    Decimal? @db.Decimal(5, 2)
-  professionalPassed   Int?     // จำนวนข้อที่ผ่าน
-  professionalTotal    Int?
-  socialScore          Decimal? @db.Decimal(5, 2)
-  socialPassed         Int?
-  socialTotal          Int?
-  personalScore        Decimal? @db.Decimal(5, 2)
-  personalPassed       Int?
-  personalTotal        Int?
-  totalEvidence        Int      @default(0)
-  totalFiles           Int      @default(0)
-  totalVideoLinks      Int      @default(0)
-  totalAnalysisJobs    Int      @default(0)
-  evidenceByIndicator Json?    // { "indicatorCode": count หรือรายการ }
-  aiInsights           Json?    // teachingStrengths, areasForImprovement, recommendations
-  domainSummaries      Json?
-  indicatorNarratives  Json?    // { "PRO_1.1": "ข้อความบรรยาย...", ... }
-  summaryNarrative     String?  @db.Text
-  passCriteria         Json?    // snapshot เกณฑ์ผ่านที่ใช้
-  deckPath             String?
-  deckMarkdown         String?  @db.Text
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                  BigInt   @id @default(autoincrement())
+  school              School   @relation(fields: [schoolId], references: [sc_id])
+  schoolId            BigInt
+  userId              BigInt // ครู/ผู้รับการประเมิน
+  fiscalYear          Int // ปีงบประมาณ (ใช้ต่อเนื่องหลายปี)
+  assessmentRound     Int      @default(1) // ภาคเรียน: 1 = ภาค 1, 2 = ภาค 2 (ต่อปี) — รายงานสรุปภาคเรียนละ 1 ครั้ง
+  overallScore        Decimal? @db.Decimal(5, 2)
+  overallPassed       Boolean?
+  professionalScore   Decimal? @db.Decimal(5, 2)
+  professionalPassed  Int? // จำนวนข้อที่ผ่าน
+  professionalTotal   Int?
+  socialScore         Decimal? @db.Decimal(5, 2)
+  socialPassed        Int?
+  socialTotal         Int?
+  personalScore       Decimal? @db.Decimal(5, 2)
+  personalPassed      Int?
+  personalTotal       Int?
+  totalEvidence       Int      @default(0)
+  totalFiles          Int      @default(0)
+  totalVideoLinks     Int      @default(0)
+  totalAnalysisJobs   Int      @default(0)
+  evidenceByIndicator Json? // { "indicatorCode": count หรือรายการ }
+  aiInsights          Json? // teachingStrengths, areasForImprovement, recommendations
+  domainSummaries     Json?
+  indicatorNarratives Json? // { "PRO_1.1": "ข้อความบรรยาย...", ... }
+  summaryNarrative    String?  @db.Text
+  passCriteria        Json? // snapshot เกณฑ์ผ่านที่ใช้
+  deckPath            String?
+  deckMarkdown        String?  @db.Text
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@unique([schoolId, userId, fiscalYear, assessmentRound], name: "devsum_school_user_year_round")
   @@index([schoolId, fiscalYear])
@@ -650,21 +654,21 @@ model LessonPlan {
   id           BigInt           @id @default(autoincrement())
   school       School           @relation(fields: [schoolId], references: [sc_id])
   schoolId     BigInt
-  code         String?          // รหัสแผนการสอน
+  code         String? // รหัสแผนการสอน
   academicYear Int // ปีการศึกษา (พ.ค.→เม.ย.)
   fiscalYear   Int // ปีงบประมาณ (ต.ค.→ก.ย.)
-  semester     Int?            // ภาคเรียนที่ (1 หรือ 2)
+  semester     Int? // ภาคเรียนที่ (1 หรือ 2)
   title        String // ชื่อแผนการสอน
-  planType     String?         // ประเภทแผน: แผนรายวิชา, แผนบูรณาการ
-  grade        String?         // ชั้น (อนุบาล 2 - ม.3)
-  room         String?         // ห้อง
-  subject      String?         // วิชา (ไทย คณิต วิทย์ อังกฤษ PBL อื่น ๆ)
-  description  String?        // รายละเอียด
-  teacherName  String         // ชื่อครูผู้สอน
-  teacherId    BigInt?        // ID ของครู (ถ้ามีในระบบ)
-  planDate     DateTime?      // วันที่ใช้แผน
-  submittedAt  DateTime?      // วันที่ส่งแผน
-  reflection   String?        // บันทึกหลังแผน (reflection)
+  planType     String? // ประเภทแผน: แผนรายวิชา, แผนบูรณาการ
+  grade        String? // ชั้น (อนุบาล 2 - ม.3)
+  room         String? // ห้อง
+  subject      String? // วิชา (ไทย คณิต วิทย์ อังกฤษ PBL อื่น ๆ)
+  description  String? // รายละเอียด
+  teacherName  String // ชื่อครูผู้สอน
+  teacherId    BigInt? // ID ของครู (ถ้ามีในระบบ)
+  planDate     DateTime? // วันที่ใช้แผน
+  submittedAt  DateTime? // วันที่ส่งแผน
+  reflection   String? // บันทึกหลังแผน (reflection)
   status       LessonPlanStatus @default(DRAFT)
   del          Boolean          @default(false)
   createdBy    BigInt?
@@ -705,12 +709,12 @@ model LessonPlanFile {
   externalUrl  String?
   thumbnailUrl String?
   fileUrls     Json? // สำหรับเก็บ array ของรูปภาพหลายไฟล์ (JSON array)
-  fileType      LessonPlanFileType  @default(PLAN) // แผนการสอน หรือ บันทึกหลังแผน
-  description   String? // คำอธิบายไฟล์
-  uploadedBy    BigInt?
-  uploadedAt    DateTime            @default(now())
-  isPrimary     Boolean             @default(false)
-  del           Boolean             @default(false)
+  fileType     LessonPlanFileType  @default(PLAN) // แผนการสอน หรือ บันทึกหลังแผน
+  description  String? // คำอธิบายไฟล์
+  uploadedBy   BigInt?
+  uploadedAt   DateTime            @default(now())
+  isPrimary    Boolean             @default(false)
+  del          Boolean             @default(false)
 
   @@index([lessonPlanId])
   @@index([lessonPlanId, isPrimary])
@@ -755,17 +759,20 @@ enum PAPart {
 enum PAPositionType {
   TEACHER
   PRINCIPAL
+  // มุมมองประเมินครูผู้ช่วย — มีอยู่จริงใน DB (paaspect) ตั้งแต่ก่อนหน้านี้
+  // แต่หลุดจาก schema ทำให้ prisma diff เสนอ MODIFY ENUM ที่จะทำให้ค่านี้หาย
+  ASSISTANT_TEACHER
 }
 
 model PAIndicator {
-  id          BigInt    @id @default(autoincrement())
-  aspect      PAAspect  @relation(fields: [aspectId], references: [id])
+  id          BigInt   @id @default(autoincrement())
+  aspect      PAAspect @relation(fields: [aspectId], references: [id])
   aspectId    BigInt
   code        String
   nameTh      String
-  description String?
+  description String?  @db.Text
   sortNo      Int
-  weight      Decimal?  @db.Decimal(5, 2)
+  weight      Decimal? @db.Decimal(5, 2)
 
   evidenceMappings PAEvidenceMapping[]
   agreementItems   PAAgreementItem[]
@@ -796,8 +803,8 @@ model PAIndicatorScale {
 }
 
 model PAConsideration {
-  id          BigInt    @id @default(autoincrement())
-  code        String    @unique
+  id          BigInt  @id @default(autoincrement())
+  code        String  @unique
   nameTh      String
   description String?
   maxScore    Int
@@ -819,16 +826,16 @@ model PAAgreement {
   evaluatorId  BigInt?
   positionType PAPositionType @default(PRINCIPAL)
 
-  fiscalYear   Int
-  startDate    DateTime
-  endDate      DateTime
-  status       PAStatus @default(DRAFT)
-  totalScore   Decimal? @db.Decimal(5, 2)
-  part1Score   Decimal? @db.Decimal(5, 2)
-  part2Score   Decimal? @db.Decimal(5, 2)
-  isPassed     Boolean?
-  passReason   String?
-  note         String?
+  fiscalYear Int
+  startDate  DateTime
+  endDate    DateTime
+  status     PAStatus @default(DRAFT)
+  totalScore Decimal? @db.Decimal(5, 2)
+  part1Score Decimal? @db.Decimal(5, 2)
+  part2Score Decimal? @db.Decimal(5, 2)
+  isPassed   Boolean?
+  passReason String?
+  note       String?
 
   items     PAAgreementItem[]
   challenge PAChallengeItem?
@@ -877,18 +884,18 @@ model PAAgreementItem {
 }
 
 model PAChallengeItem {
-  id                BigInt    @id @default(autoincrement())
-  agreement         PAAgreement @relation(fields: [agreementId], references: [id])
-  agreementId       BigInt @unique
-  title             String
-  description       String?
-  objectives        String?
+  id          BigInt      @id @default(autoincrement())
+  agreement   PAAgreement @relation(fields: [agreementId], references: [id])
+  agreementId BigInt      @unique
+  title       String
+  description String?
+  objectives  String?
 
-  c1MethodScore   Int? @db.TinyInt
+  c1MethodScore   Int?     @db.TinyInt
   c1MethodComment String?
-  c21QuantScore   Int? @db.TinyInt
+  c21QuantScore   Int?     @db.TinyInt
   c21QuantComment String?
-  c22QualScore    Int? @db.TinyInt
+  c22QualScore    Int?     @db.TinyInt
   c22QualComment  String?
   part2Total      Decimal? @db.Decimal(5, 2)
 
@@ -901,13 +908,13 @@ model PAChallengeItem {
 }
 
 model PAChallengeConsideration {
-  id              BigInt              @id @default(autoincrement())
-  challenge       PAChallengeItem     @relation(fields: [challengeId], references: [id])
+  id              BigInt          @id @default(autoincrement())
+  challenge       PAChallengeItem @relation(fields: [challengeId], references: [id])
   challengeId     BigInt
-  consideration   PAConsideration     @relation(fields: [considerationId], references: [id])
+  consideration   PAConsideration @relation(fields: [considerationId], references: [id])
   considerationId BigInt
-  score           Int?                @db.TinyInt
-  scoreValue      Decimal?            @db.Decimal(5, 2)
+  score           Int?            @db.TinyInt
+  scoreValue      Decimal?        @db.Decimal(5, 2)
   comment         String?
 
   evidenceLinks PAEvidenceMapping[]
@@ -920,19 +927,19 @@ model PAChallengeConsideration {
 }
 
 model PAEvidenceMapping {
-  id                     BigInt                    @id @default(autoincrement())
-  evidence               Evidence                  @relation(fields: [evidenceId], references: [id])
-  evidenceId             BigInt
-  agreementItem          PAAgreementItem?            @relation(fields: [agreementItemId], references: [id])
-  agreementItemId        BigInt?
-  challengeConsideration PAChallengeConsideration? @relation(fields: [challengeConsiderationId], references: [id])
+  id                       BigInt                    @id @default(autoincrement())
+  evidence                 Evidence                  @relation(fields: [evidenceId], references: [id])
+  evidenceId               BigInt
+  agreementItem            PAAgreementItem?          @relation(fields: [agreementItemId], references: [id])
+  agreementItemId          BigInt?
+  challengeConsideration   PAChallengeConsideration? @relation(fields: [challengeConsiderationId], references: [id])
   challengeConsiderationId BigInt?
-  indicator              PAIndicator?              @relation(fields: [indicatorId], references: [id])
-  indicatorId            BigInt?
-  note                   String?
-  relevanceLevel         Int?                      @db.TinyInt
-  createdAt              DateTime                  @default(now())
-  createdBy              BigInt?
+  indicator                PAIndicator?              @relation(fields: [indicatorId], references: [id])
+  indicatorId              BigInt?
+  note                     String?
+  relevanceLevel           Int?                      @db.TinyInt
+  createdAt                DateTime                  @default(now())
+  createdBy                BigInt?
 
   @@index([evidenceId])
   @@index([agreementItemId])
@@ -942,27 +949,27 @@ model PAEvidenceMapping {
 }
 
 model PASummary {
-  id                 BigInt    @id @default(autoincrement())
-  school             School    @relation(fields: [schoolId], references: [sc_id])
+  id                 BigInt   @id @default(autoincrement())
+  school             School   @relation(fields: [schoolId], references: [sc_id])
   schoolId           BigInt
   userId             BigInt
   fiscalYear         Int
-  p1AcademicScore    Decimal?  @db.Decimal(5, 2)
-  p2ManagementScore  Decimal?  @db.Decimal(5, 2)
-  p3InnovationScore  Decimal?  @db.Decimal(5, 2)
-  p4NetworkScore     Decimal?  @db.Decimal(5, 2)
-  p5DevelopmentScore Decimal?  @db.Decimal(5, 2)
-  part1Total         Decimal?  @db.Decimal(5, 2)
-  c1MethodScore      Decimal?  @db.Decimal(5, 2)
-  c2QuantScore       Decimal?  @db.Decimal(5, 2)
-  c2QualScore        Decimal?  @db.Decimal(5, 2)
-  part2Total         Decimal?  @db.Decimal(5, 2)
-  grandTotal         Decimal?  @db.Decimal(5, 2)
+  p1AcademicScore    Decimal? @db.Decimal(5, 2)
+  p2ManagementScore  Decimal? @db.Decimal(5, 2)
+  p3InnovationScore  Decimal? @db.Decimal(5, 2)
+  p4NetworkScore     Decimal? @db.Decimal(5, 2)
+  p5DevelopmentScore Decimal? @db.Decimal(5, 2)
+  part1Total         Decimal? @db.Decimal(5, 2)
+  c1MethodScore      Decimal? @db.Decimal(5, 2)
+  c2QuantScore       Decimal? @db.Decimal(5, 2)
+  c2QualScore        Decimal? @db.Decimal(5, 2)
+  part2Total         Decimal? @db.Decimal(5, 2)
+  grandTotal         Decimal? @db.Decimal(5, 2)
   isPassed           Boolean?
   evaluationLevel    String?
-  totalEvidenceCount Int       @default(0)
-  qaLinkedCount      Int       @default(0)
-  paLinkedCount      Int       @default(0)
+  totalEvidenceCount Int      @default(0)
+  qaLinkedCount      Int      @default(0)
+  paLinkedCount      Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -974,21 +981,21 @@ model PASummary {
 
 /// บันทึกไฟล์ PA 1/ส, PA 2/ส, PA 3/ส ของครู — ครู 1 คน บันทึก 1 ครั้งต่อปีการศึกษา ต่อโรงเรียน (ผูกกับ ครู, ปีการศึกษา, โรงเรียน)
 model PATeacherDocument {
-  id            BigInt   @id @default(autoincrement())
-  school        School   @relation(fields: [schoolId], references: [sc_id])
-  schoolId      BigInt
-  user          User     @relation("PATeacherDocumentOwner", fields: [userId], references: [id])
-  userId        BigInt   // ครูที่บันทึก (ผูกกับครู)
-  academicYear  Int      // ปีการศึกษา (พ.ศ.)
-  documentType  String   // PA1, PA2, PA3 (PA 1/ส, PA 2/ส, PA 3/ส)
-  fileName      String
-  storageType   String   @default("URL") // URL หรือ GDRIVE
-  storagePath   String?  // path ใน uploads หรือ URL ลิงก์
-  externalUrl   String?
-  fileSize      Int?
-  mimeType      String?
-  uploadedBy    BigInt?
-  uploadedAt    DateTime @default(now())
+  id           BigInt   @id @default(autoincrement())
+  school       School   @relation(fields: [schoolId], references: [sc_id])
+  schoolId     BigInt
+  user         User     @relation("PATeacherDocumentOwner", fields: [userId], references: [id])
+  userId       BigInt // ครูที่บันทึก (ผูกกับครู)
+  academicYear Int // ปีการศึกษา (พ.ศ.)
+  documentType String // PA1, PA2, PA3 (PA 1/ส, PA 2/ส, PA 3/ส)
+  fileName     String
+  storageType  String   @default("URL") // URL หรือ GDRIVE
+  storagePath  String? // path ใน uploads หรือ URL ลิงก์
+  externalUrl  String?
+  fileSize     Int?
+  mimeType     String?
+  uploadedBy   BigInt?
+  uploadedAt   DateTime @default(now())
 
   @@unique([schoolId, academicYear, documentType, userId])
   @@index([schoolId, academicYear])
@@ -1003,7 +1010,7 @@ model TeacherSarDocument {
   schoolId     BigInt
   user         User     @relation("TeacherSarDocumentOwner", fields: [userId], references: [id])
   userId       BigInt
-  academicYear Int      // ปีการศึกษา (พ.ศ.)
+  academicYear Int // ปีการศึกษา (พ.ศ.)
   fileName     String
   storageType  String   @default("URL")
   storagePath  String?
@@ -1026,8 +1033,8 @@ model TeacherIdPlan {
   schoolId     BigInt
   user         User     @relation("TeacherIdPlanOwner", fields: [userId], references: [id])
   userId       BigInt
-  academicYear Int      // ปีการศึกษา (พ.ศ.)
-  idPlanCode   String   // รหัสแผน / ID plan
+  academicYear Int // ปีการศึกษา (พ.ศ.)
+  idPlanCode   String // รหัสแผน / ID plan
   note         String?  @db.Text
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -1040,28 +1047,28 @@ model TeacherIdPlan {
 
 /// บันทึกการสอนชุมชน — ภาคเรียนละไม่เกิน 1 ฉบับต่อ 1 คน (อ้างอิง template docref/pp5.pdf)
 model CommunityTeachingRecord {
-  id           BigInt   @id @default(autoincrement())
-  school       School   @relation(fields: [schoolId], references: [sc_id])
+  id           BigInt    @id @default(autoincrement())
+  school       School    @relation(fields: [schoolId], references: [sc_id])
   schoolId     BigInt
-  user         User     @relation("CommunityTeachingRecordOwner", fields: [userId], references: [id])
+  user         User      @relation("CommunityTeachingRecordOwner", fields: [userId], references: [id])
   userId       BigInt
-  academicYear Int      // ปีการศึกษา (พ.ศ.)
-  semester     Int      // ภาคเรียนที่ 1 หรือ 2
-  title        String?  // ชื่อกิจกรรม/หัวข้อ
+  academicYear Int // ปีการศึกษา (พ.ศ.)
+  semester     Int // ภาคเรียนที่ 1 หรือ 2
+  title        String? // ชื่อกิจกรรม/หัวข้อ
   activityDate DateTime? // วันที่จัดกิจกรรม
-  location     String?  // สถานที่
-  summary      String?  @db.Text // สรุปผล/รายละเอียด
-  templateData Json?    // ข้อมูลเพิ่มตาม template pp5.pdf (กรอกแล้ว)
+  location     String? // สถานที่
+  summary      String?   @db.Text // สรุปผล/รายละเอียด
+  templateData Json? // ข้อมูลเพิ่มตาม template pp5.pdf (กรอกแล้ว)
   fileName     String?
-  storageType  String   @default("URL")
+  storageType  String    @default("URL")
   storagePath  String?
   externalUrl  String?
   fileSize     Int?
   mimeType     String?
   uploadedBy   BigInt?
-  uploadedAt   DateTime @default(now())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  uploadedAt   DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@unique([schoolId, academicYear, semester, userId])
   @@index([schoolId, academicYear, semester])
@@ -1075,15 +1082,15 @@ model CommunityTeachingRecord {
 
 /// นโยบาย สพฐ รายปี (สำหรับอ้างอิงในโครงการ)
 model OBECPolicy {
-  id           BigInt   @id @default(autoincrement())
-  fiscalYear   Int      // ปีงบประมาณ (เช่น 2567)
-  code         String   // รหัส/เลขข้อ นโยบาย เช่น "นโยบายที่ 1"
-  nameTh       String   // ชื่อนโยบาย
-  descriptionTh String? @db.Text
-  sortNo       Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  projects     Project[]
+  id            BigInt    @id @default(autoincrement())
+  fiscalYear    Int // ปีงบประมาณ (เช่น 2567)
+  code          String // รหัส/เลขข้อ นโยบาย เช่น "นโยบายที่ 1"
+  nameTh        String // ชื่อนโยบาย
+  descriptionTh String?   @db.Text
+  sortNo        Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  projects      Project[]
 
   @@unique([fiscalYear, code])
   @@index([fiscalYear])
@@ -1092,29 +1099,29 @@ model OBECPolicy {
 
 /// โครงการ — รายละเอียดการบันทึกโครงการ
 model Project {
-  id                 BigInt        @id @default(autoincrement())
-  school             School        @relation(fields: [schoolId], references: [sc_id])
-  schoolId           BigInt       // รหัสโรงเรียน (sc_id)
-  code               String       // รหัสโครงการ
-  academicYear       Int          // ปีการศึกษา (พ.ค.→เม.ย.)
-  fiscalYear         Int          // ปีงบประมาณ (ต.ค.→ก.ย.)
-  responsibleUser    User?        @relation("ProjectResponsible", fields: [responsibleUserId], references: [id])
-  responsibleUserId  BigInt?      // รหัสผู้รับผิดชอบโครงการ (user id)
-  obePolicy          OBECPolicy?  @relation(fields: [obePolicyId], references: [id])
-  obePolicyId        BigInt?      // สอดคล้องกับ นโยบาย สพฐ ข้อใด
-  qaIndicator        QAIndicator? @relation(fields: [qaIndicatorId], references: [id])
-  qaIndicatorId      BigInt?      // สอดคล้องกับ ตัวชี้วัดการประกันคุณภาพ ใด
-  paIndicator        PAIndicator? @relation(fields: [paIndicatorId], references: [id])
-  paIndicatorId      BigInt?      // สอดคล้องกับ ตัวชี้วัด PA ใด
-  title              String       // ชื่อโครงการ
-  description        String?      @db.Text
-  status             ProjectStatus @default(DRAFT)
-  del                Boolean      @default(false)
-  createdBy          BigInt?
-  updatedBy          BigInt?
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  files              ProjectFile[]
+  id                BigInt        @id @default(autoincrement())
+  school            School        @relation(fields: [schoolId], references: [sc_id])
+  schoolId          BigInt // รหัสโรงเรียน (sc_id)
+  code              String // รหัสโครงการ
+  academicYear      Int // ปีการศึกษา (พ.ค.→เม.ย.)
+  fiscalYear        Int // ปีงบประมาณ (ต.ค.→ก.ย.)
+  responsibleUser   User?         @relation("ProjectResponsible", fields: [responsibleUserId], references: [id])
+  responsibleUserId BigInt? // รหัสผู้รับผิดชอบโครงการ (user id)
+  obePolicy         OBECPolicy?   @relation(fields: [obePolicyId], references: [id])
+  obePolicyId       BigInt? // สอดคล้องกับ นโยบาย สพฐ ข้อใด
+  qaIndicator       QAIndicator?  @relation(fields: [qaIndicatorId], references: [id])
+  qaIndicatorId     BigInt? // สอดคล้องกับ ตัวชี้วัดการประกันคุณภาพ ใด
+  paIndicator       PAIndicator?  @relation(fields: [paIndicatorId], references: [id])
+  paIndicatorId     BigInt? // สอดคล้องกับ ตัวชี้วัด PA ใด
+  title             String // ชื่อโครงการ
+  description       String?       @db.Text
+  status            ProjectStatus @default(DRAFT)
+  del               Boolean       @default(false)
+  createdBy         BigInt?
+  updatedBy         BigInt?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  files             ProjectFile[]
 
   @@unique([schoolId, code, academicYear])
   @@index([schoolId, academicYear])
@@ -1132,23 +1139,23 @@ enum ProjectStatus {
 
 /// ไฟล์โครงการ — รายงานโครงการ / สรุปการดำเนินโครงการ (PDF พร้อมลายเซ็นอิเล็กทรอนิกส์)
 model ProjectFile {
-  id               BigInt           @id @default(autoincrement())
-  project          Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  projectId        BigInt
-  school           School           @relation(fields: [schoolId], references: [sc_id])
-  schoolId         BigInt
-  fileType         ProjectFileType  // PROJECT_REPORT | EXECUTION_SUMMARY
-  fileName         String
-  mimeType         String?         // application/pdf
-  fileSize         Int?
-  storagePath      String?         // path ใน uploads
-  externalUrl      String?
-  signedAt         DateTime?       // วันที่ลงลายเซ็นอิเล็กทรอนิกส์
-  signedBy         BigInt?         // user id ผู้ลงลายเซ็น
-  signatureMetadata Json?          // ข้อมูลลายเซ็น (เช่น hash, method)
-  uploadedBy       BigInt?
-  uploadedAt       DateTime        @default(now())
-  del              Boolean         @default(false)
+  id                BigInt          @id @default(autoincrement())
+  project           Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId         BigInt
+  school            School          @relation(fields: [schoolId], references: [sc_id])
+  schoolId          BigInt
+  fileType          ProjectFileType // PROJECT_REPORT | EXECUTION_SUMMARY
+  fileName          String
+  mimeType          String? // application/pdf
+  fileSize          Int?
+  storagePath       String? // path ใน uploads
+  externalUrl       String?
+  signedAt          DateTime? // วันที่ลงลายเซ็นอิเล็กทรอนิกส์
+  signedBy          BigInt? // user id ผู้ลงลายเซ็น
+  signatureMetadata Json? // ข้อมูลลายเซ็น (เช่น hash, method)
+  uploadedBy        BigInt?
+  uploadedAt        DateTime        @default(now())
+  del               Boolean         @default(false)
 
   @@index([projectId])
   @@index([projectId, fileType])
@@ -1157,6 +1164,6 @@ model ProjectFile {
 }
 
 enum ProjectFileType {
-  PROJECT_REPORT     // รายงานโครงการ
-  EXECUTION_SUMMARY  // สรุปการดำเนินโครงการ
+  PROJECT_REPORT // รายงานโครงการ
+  EXECUTION_SUMMARY // สรุปการดำเนินโครงการ
 }

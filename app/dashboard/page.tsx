@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth/nextauth';
+import { getUserSchools } from '@/lib/auth/scoping';
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -22,9 +23,7 @@ export default async function DashboardPage() {
   }
 
   const user = session.user;
-  const roles = user.roles ?? [];
-
-  const schoolIds = roles.map((role) => BigInt(role.schoolId));
+  const schoolIds = await getUserSchools(user.id);
 
   const evidenceWhere: Prisma.EvidenceWhereInput = {
     schoolId: { in: schoolIds },
@@ -37,8 +36,10 @@ export default async function DashboardPage() {
     filesCount,
     reviewsCount,
     recentReviews,
-    evidenceForAgg,
+    evidenceStatusByIndicator,
     evaluationRecords,
+    indicatorStandards,
+    evidenceIndicatorPairs,
     pendingEvidence,
     paAgreements,
   ] = await Promise.all([
@@ -62,32 +63,25 @@ export default async function DashboardPage() {
       orderBy: { reviewedAt: 'desc' },
       take: 10,
     }),
-    prisma.evidence.findMany({
+    // aggregate ที่ DB แทนการดึง Evidence ทุกแถวมานับใน JS
+    // ผลลัพธ์มีขนาดเท่ากับ (จำนวนตัวชี้วัด x จำนวนสถานะ) ไม่ใช่จำนวนหลักฐาน
+    prisma.evidence.groupBy({
+      by: ['indicatorId', 'status'],
+      _count: { _all: true },
       where: { schoolId: { in: schoolIds }, del: false },
-      include: {
-        indicator: {
-          include: { standard: true },
-        },
-      },
     }),
     prisma.externalEvaluation.findMany({
       where: { schoolId: { in: schoolIds } },
-      select: {
-        score: true,
-        evaluationDate: true,
-        evidenceId: true,
-        evidence: {
-          select: {
-            indicator: {
-              select: {
-                standard: {
-                  select: { code: true, nameTh: true },
-                },
-              },
-            },
-          },
-        },
-      },
+      select: { score: true, evaluationDate: true, evidenceId: true },
+    }),
+    // แผนที่ indicatorId -> standard (master data ขนาดคงที่ ไม่โตตามจำนวนหลักฐาน)
+    prisma.qAIndicator.findMany({
+      select: { id: true, standard: { select: { code: true, nameTh: true } } },
+    }),
+    // ตารางเทียบ evidenceId -> indicatorId เฉพาะหลักฐานในขอบเขตที่มีผลประเมินภายนอก
+    prisma.evidence.findMany({
+      where: { schoolId: { in: schoolIds }, externalEvaluations: { some: {} } },
+      select: { id: true, indicatorId: true },
     }),
     prisma.evidence.findMany({
       where: {
@@ -111,8 +105,10 @@ export default async function DashboardPage() {
       orderBy: { updatedAt: 'desc' },
       take: 10,
     }),
+    // where ต้องมี schoolId เสมอ — เดิมใช้ `undefined` เมื่อ schoolIds ว่าง
+    // ซึ่งทำให้ผู้ใช้ที่ยังไม่มีสิทธิ์โรงเรียนใดเลย ดึงข้อตกลง PA ของ "ทุกโรงเรียน" ออกมา
     prisma.pAAgreement.findMany({
-      where: schoolIds.length > 0 ? { schoolId: { in: schoolIds } } : undefined,
+      where: { schoolId: { in: schoolIds } },
       select: { positionType: true, status: true, isPassed: true, totalScore: true },
     }),
     ]);
@@ -124,13 +120,21 @@ export default async function DashboardPage() {
   const pendingCount = statusCounts.find((s) => s.status === 'PENDING')?._count?._all ?? 0;
   const rejectedCount = statusCounts.find((s) => s.status === 'REJECTED')?._count?._all ?? 0;
 
-  // Charts data
+  // Charts data — รวมผลจากแถวที่ groupBy คืนมา (ไม่ใช่จากหลักฐานรายชิ้น)
+  const standardByIndicator = new Map(
+    indicatorStandards.map((ind) => [
+      ind.id.toString(),
+      { code: ind.standard?.code ?? 'N/A', nameTh: ind.standard?.nameTh ?? 'ไม่ระบุ' },
+    ]),
+  );
+
   const byStandardMap = new Map<string, { ready: number; total: number }>();
-  for (const ev of evidenceForAgg) {
-    const code = ev.indicator?.standard?.code || 'N/A';
+  for (const row of evidenceStatusByIndicator) {
+    const code = standardByIndicator.get(row.indicatorId.toString())?.code ?? 'N/A';
+    const count = row._count?._all ?? 0;
     const cur = byStandardMap.get(code) || { ready: 0, total: 0 };
-    cur.total += 1;
-    if (ev.status === 'READY') cur.ready += 1;
+    cur.total += count;
+    if (row.status === 'READY') cur.ready += count;
     byStandardMap.set(code, cur);
   }
   const readinessData: ReadinessByStandardDatum[] = Array.from(byStandardMap.entries())
@@ -156,9 +160,14 @@ export default async function DashboardPage() {
     string,
     { standardName: string; total: number; scored: number; sumScore: number }
   >();
+  const indicatorByEvidence = new Map(
+    evidenceIndicatorPairs.map((e) => [e.id.toString(), e.indicatorId.toString()]),
+  );
   for (const ev of evaluationRecords) {
-    const standardCode = ev.evidence?.indicator?.standard?.code || 'ไม่ทราบ';
-    const standardName = ev.evidence?.indicator?.standard?.nameTh || 'ไม่ระบุ';
+    const indicatorId = indicatorByEvidence.get(ev.evidenceId.toString());
+    const standard = indicatorId ? standardByIndicator.get(indicatorId) : undefined;
+    const standardCode = standard?.code || 'ไม่ทราบ';
+    const standardName = standard?.nameTh || 'ไม่ระบุ';
     const current = evaluationByStandardMap.get(standardCode) || {
       standardName,
       total: 0,

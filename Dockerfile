@@ -47,6 +47,15 @@ COPY --from=base /app/.next/standalone ./
 COPY --from=base /app/.next/static ./.next/static
 COPY --from=base /app/public ./public
 
+# prisma schema + migrations + CLI สำหรับรัน migrate deploy ตอน container start
+COPY --from=base /app/prisma ./prisma
+COPY --from=base /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+COPY --from=base /app/node_modules/prisma ./node_modules/prisma
+COPY --from=base /app/node_modules/@prisma ./node_modules/@prisma
+
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
 RUN mkdir -p public/uploads/evidence public/uploads/lesson-plans public/uploads/teaching-media public/uploads/external-evaluations public/uploads/projects public/uploads/pa-teacher-docs public/uploads/teacher-sar public/uploads/community-teaching
 
 EXPOSE 9954
@@ -54,4 +63,4 @@ EXPOSE 9954
 ENV PORT=9954
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+ENTRYPOINT ["./docker-entrypoint.sh"]

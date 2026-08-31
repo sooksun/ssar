@@ -1,7 +1,9 @@
 'use server';
 
 import { auth } from '@/lib/auth/nextauth';
+import { canAccessSchool } from '@/lib/auth/scoping';
 import { prisma } from '@/lib/db';
+import { getUploadBaseDir, resolveWithinUploadDir } from '@/lib/uploads-path';
 import { externalEvaluationSchema } from '@/lib/validations/external-evaluation';
 import { revalidatePath } from 'next/cache';
 import path from 'path';
@@ -9,7 +11,7 @@ import { mkdir, writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import { ZodError } from 'zod';
 
-const ATTACHMENT_BASE_DIR = path.join(process.cwd(), 'public', 'uploads', 'external-evaluations');
+const attachmentBaseDir = () => path.join(getUploadBaseDir(), 'external-evaluations');
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10 MB
 
 async function saveAttachmentFile(options: {
@@ -34,7 +36,7 @@ async function saveAttachmentFile(options: {
   }
 
   const evidenceFolder = evidenceId.toString();
-  const targetDir = path.join(ATTACHMENT_BASE_DIR, evidenceFolder);
+  const targetDir = path.join(attachmentBaseDir(), evidenceFolder);
   await mkdir(targetDir, { recursive: true });
 
   const fileName = `${Date.now()}-${randomUUID()}${ext}`;
@@ -48,10 +50,13 @@ async function saveAttachmentFile(options: {
 
 async function deleteAttachmentFile(publicUrl?: string | null) {
   if (!publicUrl) return;
-  const relativePath = publicUrl.replace(/^\/+/, '');
-  const absolutePath = path.join(process.cwd(), 'public', relativePath);
+  // publicUrl อยู่ในรูป /uploads/... — ต้องลบจากโฟลเดอร์เดียวกับที่เขียน (getUploadBaseDir)
+  const relativePath = publicUrl.replace(/^\/+uploads\/+/, '');
+  if (!relativePath || relativePath === publicUrl.replace(/^\/+/, '')) return;
+  const resolved = resolveWithinUploadDir(relativePath.split('/'), getUploadBaseDir());
+  if (!resolved) return;
   try {
-    await unlink(absolutePath);
+    await unlink(resolved);
   } catch {
     /* ignore missing file */
   }
@@ -110,8 +115,6 @@ export async function createExternalEvaluation(formData: FormData) {
     return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
   }
   const user = session.user;
-  const roles = user.roles ?? [];
-
   try {
     const parsed = externalEvaluationSchema.parse(parseExternalEvaluationForm(formData));
     const attachmentFile = formData.get('attachmentFile');
@@ -122,7 +125,7 @@ export async function createExternalEvaluation(formData: FormData) {
     if (!evidence) {
       return { success: false, error: 'ไม่พบหลักฐาน' };
     }
-    const hasAccess = roles.some((role) => role.schoolId === evidence.schoolId.toString());
+    const hasAccess = await canAccessSchool(BigInt(session.user.id), evidence.schoolId);
     if (!hasAccess) {
       return { success: false, error: 'ไม่มีสิทธิ์บันทึกการประเมินภายใน' };
     }
@@ -208,9 +211,6 @@ export async function updateExternalEvaluation(formData: FormData) {
   if (!session) {
     return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
   }
-  const user = session.user;
-  const roles = user.roles ?? [];
-
   try {
     const parsed = externalEvaluationSchema.parse(parseExternalEvaluationForm(formData));
     const attachmentFile = formData.get('attachmentFile');
@@ -225,7 +225,7 @@ export async function updateExternalEvaluation(formData: FormData) {
     if (!existing) {
       return { success: false, error: 'ไม่พบการประเมินภายใน' };
     }
-    const hasAccess = roles.some((role) => role.schoolId === existing.schoolId.toString());
+    const hasAccess = await canAccessSchool(BigInt(session.user.id), existing.schoolId);
     if (!hasAccess) {
       return { success: false, error: 'ไม่มีสิทธิ์แก้ไขการประเมินภายใน' };
     }
@@ -282,9 +282,6 @@ export async function deleteExternalEvaluation(id: string) {
   if (!session) {
     return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
   }
-  const user = session.user;
-  const roles = user.roles ?? [];
-
   try {
     const existing = await prisma.externalEvaluation.findUnique({
       where: { id: BigInt(id) },
@@ -293,7 +290,7 @@ export async function deleteExternalEvaluation(id: string) {
     if (!existing) {
       return { success: false, error: 'ไม่พบการประเมินภายใน' };
     }
-    const hasAccess = roles.some((role) => role.schoolId === existing.schoolId.toString());
+    const hasAccess = await canAccessSchool(BigInt(session.user.id), existing.schoolId);
     if (!hasAccess) {
       return { success: false, error: 'ไม่มีสิทธิ์ลบการประเมินภายใน' };
     }

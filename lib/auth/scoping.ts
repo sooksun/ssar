@@ -1,3 +1,5 @@
+import { cache } from 'react';
+
 import { prisma } from '@/lib/db';
 
 type BigIntInput = bigint | number | string;
@@ -18,7 +20,9 @@ function toBigInt(value: BigIntInput): bigint {
  * - AREA_HEAD_OFFICE / AREA_ADMIN: ทุกโรงเรียนในเขตพื้นที่ที่ผูกไว้
  * - TEACHER / SCHOOL_DIRECTOR / SCHOOL_ADMIN / QA_LEAD / ASSESSOR: ตาม UserSchoolRole
  */
-export async function getUserSchools(userIdInput: BigIntInput): Promise<bigint[]> {
+export const getUserSchools = cache(async function getUserSchools(
+  userIdInput: BigIntInput
+): Promise<bigint[]> {
   const userId = toBigInt(userIdInput);
 
   const [memberships, areaRoles] = await Promise.all([
@@ -64,13 +68,13 @@ export async function getUserSchools(userIdInput: BigIntInput): Promise<bigint[]
   }
 
   return Array.from(schoolIds);
-}
+});
 
 /**
  * ตรวจสอบว่า user เข้าถึงโรงเรียนได้หรือไม่:
  * - ADMIN หรือ school อยู่ในเขตที่ user เป็น AREA_HEAD_OFFICE/AREA_ADMIN หรือมี UserSchoolRole ที่ school นี้
  */
-export async function canAccessSchool(
+export const canAccessSchool = cache(async function canAccessSchool(
   userIdInput: BigIntInput,
   schoolIdInput: BigIntInput
 ): Promise<boolean> {
@@ -107,7 +111,7 @@ export async function canAccessSchool(
     select: { schoolId: true },
   });
   return user?.schoolId === schoolId;
-}
+});
 
 /**
  * ตรวจสอบว่า user สามารถจัดการ PA 1/ส, 2/ส, 3/ส ของครูคนอื่นในโรงเรียนนี้ได้หรือไม่

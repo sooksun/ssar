@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth/nextauth';
+import { getUserSchools } from '@/lib/auth/scoping';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { thaiAcademicYear, thaiFiscalYear } from '@/lib/evidence';
@@ -15,7 +16,7 @@ export default async function WorkCollectionPage() {
   const canAdd = roles.some((r) => ['ADMIN', 'QA_LEAD', 'TEACHER'].includes(r.role));
   if (!canAdd) redirect('/dashboard');
 
-  const schoolIds = roles.map((r) => BigInt(r.schoolId));
+  const schoolIds = await getUserSchools(session.user.id);
   const schools =
     schoolIds.length > 0
       ? await prisma.school.findMany({

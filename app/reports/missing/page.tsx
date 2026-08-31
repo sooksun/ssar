@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth/nextauth';
+import { getUserSchools } from '@/lib/auth/scoping';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { thaiAcademicYear } from '@/lib/evidence';
@@ -13,10 +14,8 @@ export default async function MissingReportPage() {
   }
 
   const user = session.user;
-  const roles = user.roles ?? [];
-
-  // ดึง school IDs ที่ user มีสิทธิ์
-  const schoolIds = roles.map((role) => BigInt(role.schoolId));
+  // ดึง school IDs ที่ user มีสิทธิ์ (รวมสิทธิ์ระดับเขต)
+  const schoolIds = await getUserSchools(user.id);
 
   // ใช้ปีการศึกษาปัจจุบัน
   const currentAcademicYear = thaiAcademicYear();

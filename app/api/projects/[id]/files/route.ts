@@ -6,6 +6,13 @@ import { prisma } from '@/lib/db';
 import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
 import { getUploadBaseDir } from '@/lib/uploads-path';
+import { z } from 'zod';
+import { bigIntIdSchema, parseUnknown } from '@/lib/validations/api';
+
+const projectFileFormSchema = z.object({
+  fileType: z.enum(['PROJECT_REPORT', 'EXECUTION_SUMMARY']).default('PROJECT_REPORT'),
+  signed: z.boolean().default(false),
+});
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -33,7 +40,11 @@ export async function POST(
     }
 
     const { id } = await params;
-    const projectId = BigInt(id);
+    const parsedId = parseUnknown(bigIntIdSchema, id);
+    if (!parsedId.success) {
+      return NextResponse.json({ success: false, error: parsedId.error }, { status: 400 });
+    }
+    const projectId = parsedId.data;
     const userId = BigInt(session.user.id);
 
     const project = await prisma.project.findFirst({
@@ -67,9 +78,15 @@ export async function POST(
       );
     }
 
-    const fileTypeRaw = formData.get('fileType') as string;
-    const fileType = fileTypeRaw === 'EXECUTION_SUMMARY' ? 'EXECUTION_SUMMARY' : 'PROJECT_REPORT';
-    const signed = formData.get('signed') === '1' || formData.get('signed') === 'true';
+    const parsedForm = parseUnknown(projectFileFormSchema, {
+      fileType:
+        formData.get('fileType') === 'EXECUTION_SUMMARY' ? 'EXECUTION_SUMMARY' : 'PROJECT_REPORT',
+      signed: formData.get('signed') === '1' || formData.get('signed') === 'true',
+    });
+    if (!parsedForm.success) {
+      return NextResponse.json({ success: false, error: parsedForm.error }, { status: 400 });
+    }
+    const { fileType, signed } = parsedForm.data;
 
     const file = formData.get('file') as File | null;
     if (!file || !(file instanceof File) || typeof file.arrayBuffer !== 'function') {

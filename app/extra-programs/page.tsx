@@ -247,10 +247,8 @@ export default async function ExtraProgramsPage() {
               <code className="bg-background px-2 py-1 rounded text-xs">
                 POST /api/auth/verify
               </code>
-              {' '}หรือ{' '}
-              <code className="bg-background px-2 py-1 rounded text-xs">
-                GET /api/auth/verify?token={'{token}'}
-              </code>
+              {' '}(เท่านั้น — ไม่รองรับการส่ง token ทาง query string อีกต่อไป
+              เพราะ token จะไปโผล่ใน log ของ proxy และประวัติเบราว์เซอร์)
             </p>
             <p className="text-sm text-muted-foreground mb-2">
               <strong>Request Body (POST):</strong>
@@ -294,7 +292,13 @@ export default async function ExtraProgramsPage() {
             <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 ml-4">
               <li>เรียก <code className="bg-background px-1 py-0.5 rounded text-xs">GET /api/auth/token</code> จากหน้าเว็บที่มี session</li>
               <li>เก็บ token ที่ได้จาก response</li>
-              <li>ส่ง token ไปยังโปรแกรมเสริม (ผ่าน URL parameter, POST body, หรือ header)</li>
+              <li>
+                ส่ง token ไปยังโปรแกรมเสริมผ่าน POST body หรือ header{' '}
+                <code className="bg-background px-1 py-0.5 rounded text-xs">
+                  Authorization: Bearer &lt;token&gt;
+                </code>{' '}
+                — <strong>ห้ามใส่ใน URL</strong>
+              </li>
               <li>ในโปรแกรมเสริม เรียก <code className="bg-background px-1 py-0.5 rounded text-xs">POST /api/auth/verify</code> เพื่อตรวจสอบ token</li>
               <li>ใช้ข้อมูลผู้ใช้จาก response เพื่อกำหนดสิทธิ์การเข้าถึง</li>
             </ul>

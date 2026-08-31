@@ -3,9 +3,37 @@ import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth/nextauth';
 import { canAccessSchool, canManageTeacherPaInSchool, isUserInSchool } from '@/lib/auth/scoping';
 import { prisma } from '@/lib/db';
+import { z } from 'zod';
+import {
+  bigIntIdSchema,
+  parseUnknown,
+  parseSearchParams,
+  thaiYearSchema,
+} from '@/lib/validations/api';
+
+import { getUploadBaseDir } from '@/lib/uploads-path';
 import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
 import { isAllowedFileType, describeAllowedFileTypes } from '@/lib/file-types';
+
+const ctQuerySchema = z.object({
+  schoolId: bigIntIdSchema,
+  academicYear: thaiYearSchema,
+  semester: z.coerce.number().int().min(1).max(2),
+  forUserId: bigIntIdSchema.optional(),
+});
+
+const ctBodySchema = z.object({
+  schoolId: bigIntIdSchema,
+  academicYear: thaiYearSchema,
+  semester: z.coerce.number().int().min(1).max(2),
+  forUserId: bigIntIdSchema.optional(),
+  title: z.string().max(500).optional(),
+  activityDate: z.string().max(50).optional(),
+  location: z.string().max(500).optional(),
+  summary: z.string().max(20000).optional(),
+});
+
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -31,24 +59,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const schoolId = searchParams.get('schoolId');
-    const academicYear = searchParams.get('academicYear');
-    const semester = searchParams.get('semester');
-
-    if (!schoolId || !academicYear || !semester) {
-      return NextResponse.json(
-        { success: false, error: 'ต้องระบุ schoolId, academicYear และ semester' },
-        { status: 400 }
-      );
+    const query = parseSearchParams(request.url, ctQuerySchema);
+    if (!query.success) {
+      return NextResponse.json({ success: false, error: query.error }, { status: 400 });
     }
-
-    const schoolIdBigInt = BigInt(schoolId);
-    const year = parseInt(academicYear, 10);
-    const sem = parseInt(semester, 10);
-    if (Number.isNaN(year) || (sem !== 1 && sem !== 2)) {
-      return NextResponse.json({ success: false, error: 'ปีการศึกษาหรือภาคเรียนไม่ถูกต้อง' }, { status: 400 });
-    }
+    const schoolIdBigInt = query.data.schoolId;
+    const year = query.data.academicYear;
+    const sem = query.data.semester;
 
     const hasAccess = await canAccessSchool(BigInt(session.user.id), schoolIdBigInt);
     if (!hasAccess) {
@@ -56,11 +73,11 @@ export async function GET(request: NextRequest) {
     }
 
     let userId = BigInt(session.user.id);
-    const forUserIdParam = searchParams.get('forUserId');
+    const forUserIdParam = query.data.forUserId;
     if (forUserIdParam) {
       const canManage = await canManageTeacherPaInSchool(BigInt(session.user.id), schoolIdBigInt);
       if (canManage) {
-        const targetId = BigInt(forUserIdParam);
+        const targetId = forUserIdParam;
         const inSchool = await isUserInSchool(targetId, schoolIdBigInt);
         if (inSchool) userId = targetId;
       }
@@ -114,20 +131,23 @@ export async function POST(request: NextRequest) {
         summary: (formData.get('summary') as string)?.trim() || undefined,
       };
     } else {
-      body = await request.json();
+      try {
+        body = await request.json();
+      } catch {
+        return NextResponse.json(
+          { success: false, error: 'รูปแบบข้อมูลไม่ถูกต้อง (ต้องเป็น JSON)' },
+          { status: 400 }
+        );
+      }
     }
 
-    const schoolId = BigInt(body.schoolId as string);
-    const year = typeof body.academicYear === 'number'
-      ? body.academicYear
-      : parseInt(String(body.academicYear), 10);
-    const semester = typeof body.semester === 'number'
-      ? body.semester
-      : parseInt(String(body.semester), 10);
-
-    if (Number.isNaN(year) || (semester !== 1 && semester !== 2)) {
-      return NextResponse.json({ success: false, error: 'ปีการศึกษาหรือภาคเรียนไม่ถูกต้อง' }, { status: 400 });
+    const parsed = parseUnknown(ctBodySchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: parsed.error }, { status: 400 });
     }
+    const schoolId = parsed.data.schoolId;
+    const year = parsed.data.academicYear;
+    const semester = parsed.data.semester;
 
     const hasAccess = await canAccessSchool(BigInt(session.user.id), schoolId);
     if (!hasAccess) {
@@ -135,22 +155,22 @@ export async function POST(request: NextRequest) {
     }
 
     let userId = BigInt(session.user.id);
-    const forUserIdRaw = (body.forUserId as string)?.trim();
+    const forUserIdRaw = parsed.data.forUserId;
     if (forUserIdRaw) {
       const canManage = await canManageTeacherPaInSchool(BigInt(session.user.id), schoolId);
       if (canManage) {
-        const targetId = BigInt(forUserIdRaw);
+        const targetId = forUserIdRaw;
         const inSchool = await isUserInSchool(targetId, schoolId);
         if (inSchool) userId = targetId;
       }
     }
 
     const uploadedBy = BigInt(session.user.id);
-    const title = (body.title as string)?.trim() || null;
-    const activityDateStr = (body.activityDate as string)?.trim();
+    const title = parsed.data.title?.trim() || null;
+    const activityDateStr = parsed.data.activityDate?.trim();
     const activityDate = activityDateStr ? new Date(activityDateStr) : null;
-    const location = (body.location as string)?.trim() || null;
-    const summary = (body.summary as string)?.trim() || null;
+    const location = parsed.data.location?.trim() || null;
+    const summary = parsed.data.summary?.trim() || null;
     const templateData = body.templateData != null ? body.templateData : null;
 
     // ถ้าส่งไฟล์มา (multipart)
@@ -207,9 +227,7 @@ export async function POST(request: NextRequest) {
           );
         }
         const uploadDir = path.join(
-          process.cwd(),
-          'public',
-          'uploads',
+          getUploadBaseDir(),
           'community-teaching',
           schoolId.toString(),
           year.toString(),

@@ -35,9 +35,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# prisma
-/prisma/migrations
-
 # IDE
 .vscode
 .idea
@@ -52,3 +49,10 @@ Thumbs.db
 # large archives
 ssar.zip
 *.zip
+
+# Claude Code worktrees (สำเนา repo ของ session — ห้าม commit)
+.claude/worktrees/
+.claude/settings.local.json
+
+# ไฟล์ env สำรอง — ห้าม commit (เคยถูก track มาก่อน)
+.env.backup

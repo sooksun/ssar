@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth/nextauth';
+import { getUserSchools } from '@/lib/auth/scoping';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import Link from 'next/link';
@@ -6,10 +7,12 @@ import Image from 'next/image';
 import { getEvidenceStatusBadgeClass, getEvidenceStatusLabel } from '@/lib/status';
 import { BackLink } from '@/components/ui/back-link';
 
+const PAGE_SIZE = 24;
+
 export default async function EvidencePage({
   searchParams,
 }: {
-  searchParams: Promise<{ level?: string }>;
+  searchParams: Promise<{ level?: string; page?: string }>;
 }) {
   const session = await auth();
 
@@ -18,29 +21,36 @@ export default async function EvidencePage({
   }
 
   const user = session.user;
-  const roles = user.roles ?? [];
-
-  // ดึง school IDs ที่ user มีสิทธิ์
-  const schoolIds = roles.map((role) => BigInt(role.schoolId));
+  // ดึง school IDs ที่ user มีสิทธิ์ (รวมสิทธิ์ระดับเขต — ห้ามอ่านจาก session roles ตรง ๆ)
+  const schoolIds = await getUserSchools(user.id);
 
   // กำหนดแท็บที่เลือกจาก query param
   const LEVEL_TABS = [
     { code: 'EARLY_CHILDHOOD', label: 'ปฐมวัย' },
     { code: 'BASIC', label: 'ขั้นพื้นฐาน' },
   ] as const;
-  const { level } = await searchParams;
+  const { level, page: pageParam } = await searchParams;
   const activeLevel =
     LEVEL_TABS.some((t) => t.code === level) ? level! : 'EARLY_CHILDHOOD';
   const activeLabel = LEVEL_TABS.find((t) => t.code === activeLevel)?.label ?? 'ปฐมวัย';
 
-  // ดึงรายการหลักฐาน (จำกัดเฉพาะโรงเรียนที่ user มีสิทธิ์)
-  const allEvidence = await prisma.evidence.findMany({
-    where: {
-      schoolId: {
-        in: schoolIds,
-      },
-      del: false,
-    },
+  const parsedPage = Number(pageParam);
+  const currentPage =
+    Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+
+  // กรอง level ที่ระดับ DB (เดิมดึง 100 แถวแล้วค่อย .filter() ใน JS
+  // ทำให้จำนวนต่อแท็บไม่แน่นอน และเห็นได้ไม่เกิน 100 รายการล่าสุดตลอดกาล)
+  const where = {
+    schoolId: { in: schoolIds },
+    del: false,
+    indicator: { standard: { level: { code: activeLevel } } },
+  };
+
+  // ดึงรายการหลักฐาน (จำกัดเฉพาะโรงเรียนที่ user มีสิทธิ์) พร้อมจำนวนรวมสำหรับแบ่งหน้า
+  const [totalCount, evidence] = await Promise.all([
+    prisma.evidence.count({ where }),
+    prisma.evidence.findMany({
+    where,
     include: {
       school: {
         select: {
@@ -70,17 +80,15 @@ export default async function EvidencePage({
         take: 1,
       },
     },
-    orderBy: {
-      createdAt: 'desc',
-    },
-    take: 100, // เพิ่มเป็น 100 เพื่อรองรับการกรอง
-  });
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    skip: (currentPage - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    }),
+  ]);
 
-  // กรองตาม level
-  const evidence = allEvidence.filter((item) => {
-    const levelCode = item.indicator.standard.level?.code;
-    return levelCode === activeLevel;
-  });
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const rangeStart = totalCount === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(currentPage * PAGE_SIZE, totalCount);
 
   return (
     <div className="container mx-auto p-6">
@@ -122,7 +130,7 @@ export default async function EvidencePage({
         activeLevel === 'BASIC' ? 'bg-purple-50 border-purple-200' : 'bg-blue-50 border-blue-200'
       }`}>
         <p className="text-sm text-muted-foreground">
-          กำลังแสดง {evidence.length} รายการ ({activeLabel})
+          กำลังแสดง {rangeStart}-{rangeEnd} จาก {totalCount} รายการ ({activeLabel})
         </p>
       </div>
 
@@ -217,6 +225,41 @@ export default async function EvidencePage({
           ))}
         </div>
       )}
+      {totalPages > 1 && (
+        <nav
+          aria-label="แบ่งหน้ารายการหลักฐาน"
+          className="mt-6 flex items-center justify-center gap-3"
+        >
+          {currentPage > 1 ? (
+            <Link
+              href={`/evidence?level=${activeLevel}&page=${currentPage - 1}`}
+              className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
+            >
+              ก่อนหน้า
+            </Link>
+          ) : (
+            <span className="rounded-md border px-3 py-2 text-sm text-muted-foreground opacity-50">
+              ก่อนหน้า
+            </span>
+          )}
+          <span className="text-sm text-muted-foreground">
+            หน้า {currentPage} / {totalPages}
+          </span>
+          {currentPage < totalPages ? (
+            <Link
+              href={`/evidence?level=${activeLevel}&page=${currentPage + 1}`}
+              className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
+            >
+              ถัดไป
+            </Link>
+          ) : (
+            <span className="rounded-md border px-3 py-2 text-sm text-muted-foreground opacity-50">
+              ถัดไป
+            </span>
+          )}
+        </nav>
+      )}
+
       <div className="mt-6">
         <BackLink href="/dashboard" label="ย้อนกลับแดชบอร์ด" />
       </div>

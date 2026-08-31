@@ -1,8 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/nextauth';
-import { canAccessSchool } from '@/lib/auth/scoping';
+import { canAccessSchool, getUserSchools } from '@/lib/auth/scoping';
 import { createPAAgreement } from '@/lib/pa-utils';
 import { prisma } from '@/lib/db';
+import { z } from 'zod';
+import {
+  bigIntIdSchema,
+  dateStringSchema,
+  parseJsonBody,
+  parseSearchParams,
+  thaiYearSchema,
+} from '@/lib/validations/api';
+
+const agreementQuerySchema = z.object({
+  schoolId: bigIntIdSchema.optional(),
+  fiscalYear: thaiYearSchema.optional(),
+});
+
+const createAgreementSchema = z.object({
+  schoolId: bigIntIdSchema,
+  userId: bigIntIdSchema.optional(),
+  fiscalYear: thaiYearSchema,
+  startDate: dateStringSchema.optional(),
+  endDate: dateStringSchema.optional(),
+  positionType: z.enum(['TEACHER', 'PRINCIPAL']).default('PRINCIPAL'),
+});
 
 /**
  * GET /api/pa/agreements?schoolId=...&fiscalYear=...
@@ -15,27 +37,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const schoolIdParam = searchParams.get('schoolId');
-    const fiscalYearParam = searchParams.get('fiscalYear');
+    const query = parseSearchParams(request.url, agreementQuerySchema);
+    if (!query.success) {
+      return NextResponse.json({ error: query.error }, { status: 400 });
+    }
 
-    const schoolIds = await import('@/lib/auth/scoping').then((m) =>
-      m.getUserSchools(session.user.id)
-    );
+    const schoolIds = await getUserSchools(session.user.id);
 
-    const where: { schoolId?: bigint | { in: bigint[] }; fiscalYear?: number } = {};
-    if (schoolIdParam) {
-      const sid = BigInt(schoolIdParam);
-      const hasAccess = await canAccessSchool(BigInt(session.user.id), sid);
+    const where: { schoolId: bigint | { in: bigint[] }; fiscalYear?: number } = {
+      // ค่าเริ่มต้น: จำกัดเฉพาะโรงเรียนที่ user เข้าถึงได้เสมอ
+      schoolId: { in: schoolIds },
+    };
+    if (query.data.schoolId !== undefined) {
+      const hasAccess = await canAccessSchool(BigInt(session.user.id), query.data.schoolId);
       if (!hasAccess) {
         return NextResponse.json({ error: 'ไม่มีสิทธิ์เข้าถึงโรงเรียนนี้' }, { status: 403 });
       }
-      where.schoolId = sid;
-    } else if (schoolIds.length > 0) {
-      where.schoolId = { in: schoolIds };
+      where.schoolId = query.data.schoolId;
     }
-    if (fiscalYearParam) {
-      where.fiscalYear = parseInt(fiscalYearParam, 10);
+    if (query.data.fiscalYear !== undefined) {
+      where.fiscalYear = query.data.fiscalYear;
     }
 
     const agreements = await prisma.pAAgreement.findMany({
@@ -73,26 +94,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const schoolId = BigInt(body.schoolId);
-    const userId = BigInt(body.userId ?? session.user.id);
-    const fiscalYear = Number(body.fiscalYear);
-    const startDate = body.startDate ? new Date(body.startDate) : new Date();
-    const endDate = body.endDate ? new Date(body.endDate) : new Date();
+    const parsed = await parseJsonBody(request, createAgreementSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const { schoolId, fiscalYear, positionType } = parsed.data;
+    const userId = parsed.data.userId ?? BigInt(session.user.id);
 
     const hasAccess = await canAccessSchool(BigInt(session.user.id), schoolId);
     if (!hasAccess) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์สร้างข้อตกลงในโรงเรียนนี้' }, { status: 403 });
     }
 
-    const positionType = body.positionType === 'TEACHER' ? 'TEACHER' as const : 'PRINCIPAL' as const;
-
     const agreement = await createPAAgreement({
       schoolId,
       userId,
       fiscalYear,
-      startDate,
-      endDate,
+      startDate: parsed.data.startDate ?? new Date(),
+      endDate: parsed.data.endDate ?? new Date(),
       positionType,
       createdBy: BigInt(session.user.id),
     });

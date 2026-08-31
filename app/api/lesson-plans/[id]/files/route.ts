@@ -3,8 +3,10 @@ import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth/nextauth';
 import { canAccessSchool } from '@/lib/auth/scoping';
 import { prisma } from '@/lib/db';
+import { getUploadBaseDir } from '@/lib/uploads-path';
 import { AUDIT_ACTIONS, logAction } from '@/lib/audit';
 import path from 'path';
+import { writeUploadedFile } from '@/lib/file-stream';
 import { mkdir, writeFile } from 'fs/promises';
 import {
   isImageFile,
@@ -175,9 +177,7 @@ export async function POST(
       }
 
       const uploadDir = path.join(
-        process.cwd(),
-        'public',
-        'uploads',
+        getUploadBaseDir(),
         'lesson-plans',
         lpId.toString(),
         folderName
@@ -264,12 +264,11 @@ export async function POST(
       // กรณีวิดีโอหรือไฟล์อื่น: เก็บทีละไฟล์
       for (let index = 0; index < filesToProcess.length; index += 1) {
         const f = filesToProcess[index];
-        const arrayBuffer = await f.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
         const timestamp = Date.now() + index;
         const safeName = `${timestamp}-${f.name}`.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]/g, '_');
         const filePath = path.join(uploadDir, safeName);
-        await writeFile(filePath, buffer);
+        // เขียนแบบ stream — ไฟล์วิดีโอขนาดใหญ่ไม่ถูกโหลดเข้า heap ทั้งก้อน
+        await writeUploadedFile(f, filePath);
 
         const urlPath = `/uploads/lesson-plans/${lpId.toString()}/${folderName}/${safeName}`;
         const baseName = raw.fileName

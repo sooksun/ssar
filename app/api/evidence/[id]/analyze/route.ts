@@ -10,7 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/nextauth';
 import { canAccessSchool } from '@/lib/auth/scoping';
 import { prisma } from '@/lib/db';
-import path from 'path';
+import { getUploadBaseDir, resolveWithinUploadDir } from '@/lib/uploads-path';
+import { bigIntIdSchema, parseUnknown } from '@/lib/validations/api';
 import {
   analyzeEvidenceFile,
   analyzeEvidenceUrl,
@@ -30,7 +31,11 @@ export async function POST(
     }
 
     const { id } = await params;
-    const evidenceId = BigInt(id);
+    const parsedId = parseUnknown(bigIntIdSchema, id);
+    if (!parsedId.success) {
+      return NextResponse.json({ error: parsedId.error }, { status: 400 });
+    }
+    const evidenceId = parsedId.data;
 
     const evidence = await prisma.evidence.findUnique({
       where: { id: evidenceId },
@@ -59,7 +64,10 @@ export async function POST(
       const filePathForAnalysis =
         firstFile?.storagePath ||
         (firstFile?.externalUrl?.startsWith('/uploads/')
-          ? path.join(process.cwd(), 'public', firstFile.externalUrl)
+          ? resolveWithinUploadDir(
+              firstFile.externalUrl.replace(/^\/+uploads\/+/, '').split('/'),
+              getUploadBaseDir(),
+            )
           : null);
 
       if (filePathForAnalysis) {
@@ -239,38 +247,58 @@ async function saveEvidenceIndicatorMappings(
   _updatedBy: bigint,
 ) {
   const levelCodes = ['EARLY_CHILDHOOD', 'BASIC', 'ASSISTANT_TEACHER'] as const;
-  await prisma.evidenceIndicatorMapping.deleteMany({ where: { evidenceId, source: 'AI' } });
 
-  for (const levelCode of levelCodes) {
-    const items = qaIndicatorsByLevel[levelCode];
-    if (!Array.isArray(items) || items.length === 0) continue;
+  // รวบรวม code ที่ AI เสนอ แยกตาม level ก่อน แล้วค่อยยิง query เดียวต่อ level
+  // (เดิมยิง findFirst + upsert ต่อ code = 2N queries)
+  const wanted = levelCodes
+    .map((levelCode) => ({
+      levelCode,
+      items: Array.isArray(qaIndicatorsByLevel[levelCode])
+        ? qaIndicatorsByLevel[levelCode]!
+        : [],
+    }))
+    .filter((entry) => entry.items.length > 0);
 
-    for (const { code, reason } of items) {
-      const indicator = await prisma.qAIndicator.findFirst({
+  const lookups = await Promise.all(
+    wanted.map(({ levelCode, items }) =>
+      prisma.qAIndicator.findMany({
         where: {
-          code,
+          code: { in: Array.from(new Set(items.map((i) => i.code))) },
           standard: { level: { code: levelCode } },
         },
-        select: { id: true },
-      });
-      if (!indicator) continue;
+        select: { id: true, code: true },
+      }),
+    ),
+  );
 
-      await prisma.evidenceIndicatorMapping.upsert({
-        where: {
-          evidenceId_indicatorId: { evidenceId, indicatorId: indicator.id },
-        },
-        create: {
-          evidenceId,
-          indicatorId: indicator.id,
-          reason: reason?.slice(0, 500) ?? null,
-          source: 'AI',
-        },
-        update: {
-          reason: reason?.slice(0, 500) ?? null,
-        },
+  // ตัวชี้วัดเดียวกันอาจถูกเสนอซ้ำข้าม level — ยุบให้เหลือรายการเดียวต่อ indicatorId
+  const rows = new Map<string, { indicatorId: bigint; reason: string | null }>();
+  wanted.forEach(({ items }, index) => {
+    const byCode = new Map(lookups[index].map((ind) => [ind.code, ind.id]));
+    for (const { code, reason } of items) {
+      const indicatorId = byCode.get(code);
+      if (!indicatorId) continue;
+      rows.set(indicatorId.toString(), {
+        indicatorId,
+        reason: reason?.slice(0, 500) ?? null,
       });
     }
-  }
+  });
+
+  // ลบของเดิมแล้วเขียนใหม่ภายใน transaction เดียว — ถ้าพังกลางทางต้อง rollback
+  // ไม่ใช่ปล่อยให้ mapping เดิมหายไปเฉย ๆ
+  await prisma.$transaction([
+    prisma.evidenceIndicatorMapping.deleteMany({ where: { evidenceId, source: 'AI' } }),
+    prisma.evidenceIndicatorMapping.createMany({
+      data: Array.from(rows.values()).map(({ indicatorId, reason }) => ({
+        evidenceId,
+        indicatorId,
+        reason,
+        source: 'AI',
+      })),
+      skipDuplicates: true,
+    }),
+  ]);
 }
 
 /**
