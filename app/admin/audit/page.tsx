@@ -51,6 +51,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     prisma.school.findMany({
       where: { del: false },
       orderBy: { name: 'asc' },
+      select: { sc_id: true, name: true },
     }),
   ]);
 
@@ -98,7 +99,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
             >
               <option value="ALL">ทั้งหมด</option>
               {schools.map((school) => (
-                <option key={school.id.toString()} value={school.sc_id.toString()}>
+                <option key={school.sc_id.toString()} value={school.sc_id.toString()}>
                   {school.name}
                 </option>
               ))}

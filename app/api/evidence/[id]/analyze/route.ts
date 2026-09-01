@@ -16,6 +16,7 @@ import {
   analyzeEvidenceFile,
   analyzeEvidenceUrl,
   analyzeEvidenceText,
+  FileNotAnalyzableError,
   type AnalysisResult,
   type QAIndicatorsByLevel,
 } from '@/lib/ai/gemini';
@@ -71,12 +72,22 @@ export async function POST(
           : null);
 
       if (filePathForAnalysis) {
-        result = await analyzeEvidenceFile({
-          filePath: filePathForAnalysis,
-          mimeType: firstFile!.mimeType ?? 'application/octet-stream',
-          title: evidence.title,
-          description: evidence.description ?? undefined,
-        });
+        try {
+          result = await analyzeEvidenceFile({
+            filePath: filePathForAnalysis,
+            mimeType: firstFile!.mimeType ?? 'application/octet-stream',
+            title: evidence.title,
+            description: evidence.description ?? undefined,
+          });
+        } catch (error) {
+          if (error instanceof FileNotAnalyzableError) {
+            console.error('[api/evidence/analyze] file analysis rejected:', error);
+            return NextResponse.json({ error: error.message }, { status: 422 });
+          }
+          // ไม่ใช่การปฏิเสธจากด่าน guard (เช่น GEMINI_API_KEY ไม่ถูกต้อง, network/quota, parse
+          // response ล้มเหลว) — ปล่อยให้ catch บนสุดของ route จัดการเป็น 500 ตามเดิม
+          throw error;
+        }
       } else if (firstFile?.externalUrl) {
         result = await analyzeEvidenceUrl({
           url: firstFile.externalUrl,
@@ -229,9 +240,12 @@ export async function POST(
       hasGemini,
     });
   } catch (error) {
+    // ข้อความจริงลง log ฝั่งเซิร์ฟเวอร์เท่านั้น — error ที่มาถึงตรงนี้เป็นความผิดพลาดภายใน
+    // (คีย์ Gemini ผิด, quota, DB ล้ม) ซึ่งเปิดเผยรายละเอียดให้ client ไม่ได้
+    // ส่วนกรณีที่บอกผู้ใช้ได้ถูกดักเป็น 422 ไปก่อนหน้านี้แล้ว
     console.error('[api/evidence/analyze]', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'เกิดข้อผิดพลาด' },
+      { error: 'เกิดข้อผิดพลาดในการวิเคราะห์หลักฐาน กรุณาลองใหม่อีกครั้ง' },
       { status: 500 },
     );
   }

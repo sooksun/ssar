@@ -3,9 +3,9 @@ import { thaiAcademicYear } from '../evidence';
 
 // Mock Prisma client สำหรับ nextEvidenceCode — ใช้ vi.hoisted เพื่อให้มีค่าก่อน vi.mock ทำงาน
 // mock ที่ '@/lib/db' (singleton ที่โค้ดใช้จริง) ไม่ใช่ constructor ของ '@prisma/client'
-const { mockFindUnique, mockCount } = vi.hoisted(() => ({
+const { mockFindUnique, mockFindMany } = vi.hoisted(() => ({
   mockFindUnique: vi.fn(),
-  mockCount: vi.fn(),
+  mockFindMany: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({
@@ -14,7 +14,7 @@ vi.mock('@/lib/db', () => ({
       findUnique: mockFindUnique,
     },
     evidence: {
-      count: mockCount,
+      findMany: mockFindMany,
     },
   },
 }));
@@ -24,11 +24,21 @@ let nextEvidenceCode: (
   indicatorId: bigint,
   fiscalYear: number
 ) => Promise<string>;
+let createWithEvidenceCode: typeof import('../evidence').createWithEvidenceCode;
 
 beforeAll(async () => {
   const evidenceModule = await import('../evidence');
   nextEvidenceCode = evidenceModule.nextEvidenceCode;
+  createWithEvidenceCode = evidenceModule.createWithEvidenceCode;
 });
+
+/** จำลอง error ของ Prisma เมื่อชน unique index */
+function uniqueViolation(target: string[]) {
+  return Object.assign(new Error('Unique constraint failed'), {
+    code: 'P2002',
+    meta: { target },
+  });
+}
 
 describe('thaiAcademicYear', () => {
   it('ควรคำนวณปีการศึกษาถูกต้องสำหรับเดือนพฤษภาคม (พ.ค.)', () => {
@@ -88,134 +98,141 @@ describe('nextEvidenceCode', () => {
     vi.clearAllMocks();
   });
 
-  it('ควรสร้างรหัสหลักฐานแรกสำหรับ indicator ที่ไม่มีหลักฐาน', async () => {
-    const indicatorId = BigInt(1);
-    const fiscalYear = 2568;
+  it('ควรคืนรหัส -01 เมื่อยังไม่มีหลักฐานของตัวชี้วัดนี้', async () => {
+    mockFindUnique.mockResolvedValue({ code: '2.3' });
+    mockFindMany.mockResolvedValue([]);
 
-    // Mock indicator
-    mockFindUnique.mockResolvedValue({
-      code: '2.3',
-    });
-
-    // Mock count (ไม่มีหลักฐาน)
-    mockCount.mockResolvedValue(0);
-
-    const result = await nextEvidenceCode(indicatorId, fiscalYear);
+    const result = await nextEvidenceCode(BigInt(1), 2568);
 
     expect(result).toBe('2.3-01');
     expect(mockFindUnique).toHaveBeenCalledWith({
-      where: { id: indicatorId },
+      where: { id: BigInt(1) },
       select: { code: true },
     });
-    expect(mockCount).toHaveBeenCalledWith({
+    expect(mockFindMany).toHaveBeenCalledWith({
       where: {
-        indicatorId,
-        fiscalYear,
-        del: false,
+        indicatorId: BigInt(1),
+        fiscalYear: 2568,
+        evidenceCode: { startsWith: '2.3-' },
       },
+      select: { evidenceCode: true },
     });
   });
 
-  it('ควรสร้างรหัสหลักฐานลำดับถัดไปเมื่อมีหลักฐานอยู่แล้ว', async () => {
-    const indicatorId = BigInt(1);
-    const fiscalYear = 2568;
+  it('ควรนับต่อจากเลขสูงสุดที่เคยออก', async () => {
+    mockFindUnique.mockResolvedValue({ code: '2.3' });
+    mockFindMany.mockResolvedValue([
+      { evidenceCode: '2.3-01' },
+      { evidenceCode: '2.3-02' },
+    ]);
 
-    // Mock indicator
-    mockFindUnique.mockResolvedValue({
-      code: '2.3',
-    });
+    const result = await nextEvidenceCode(BigInt(1), 2568);
 
-    // Mock count (มีหลักฐาน 2 รายการ)
-    mockCount.mockResolvedValue(2);
-
-    const result = await nextEvidenceCode(indicatorId, fiscalYear);
-
-    expect(result).toBe('2.3-03'); // 2 + 1 = 3 → 03
+    expect(result).toBe('2.3-03');
   });
 
-  it('ควรสร้างรหัสหลักฐานสำหรับ indicator อื่น', async () => {
-    const indicatorId = BigInt(5);
-    const fiscalYear = 2568;
+  it('ควรไม่ออกรหัสซ้ำแม้รหัสกลางช่วงจะถูกลบไปแล้ว', async () => {
+    // สถานการณ์บั๊กเดิม: 01,02,03 ออกไปแล้ว ลบ 02 ทิ้ง (soft delete)
+    // count-based จะได้ 2+1 = 03 ซึ่งชนกับที่ออกไปแล้ว
+    mockFindUnique.mockResolvedValue({ code: '2.3' });
+    mockFindMany.mockResolvedValue([
+      { evidenceCode: '2.3-01' },
+      { evidenceCode: '2.3-02' },
+      { evidenceCode: '2.3-03' },
+    ]);
 
-    // Mock indicator
-    mockFindUnique.mockResolvedValue({
-      code: '1.1',
-    });
+    const result = await nextEvidenceCode(BigInt(1), 2568);
 
-    // Mock count (มีหลักฐาน 5 รายการ)
-    mockCount.mockResolvedValue(5);
-
-    const result = await nextEvidenceCode(indicatorId, fiscalYear);
-
-    expect(result).toBe('1.1-06'); // 5 + 1 = 6 → 06
+    expect(result).toBe('2.3-04');
   });
 
-  it('ควร throw error เมื่อไม่พบ indicator', async () => {
-    const indicatorId = BigInt(999);
-    const fiscalYear = 2568;
+  it('ควรข้ามรหัสที่รูปแบบไม่ตรงโดยไม่พัง', async () => {
+    mockFindUnique.mockResolvedValue({ code: '2.3' });
+    mockFindMany.mockResolvedValue([
+      { evidenceCode: '2.3-01' },
+      { evidenceCode: '2.3-เก่า' },
+      { evidenceCode: null },
+    ]);
 
-    // Mock indicator ไม่พบ
+    const result = await nextEvidenceCode(BigInt(1), 2568);
+
+    expect(result).toBe('2.3-02');
+  });
+
+  it('ควรรองรับเลขเกิน 99 โดยไม่ตัดหลัก', async () => {
+    mockFindUnique.mockResolvedValue({ code: '2.3' });
+    mockFindMany.mockResolvedValue([{ evidenceCode: '2.3-99' }]);
+
+    const result = await nextEvidenceCode(BigInt(1), 2568);
+
+    expect(result).toBe('2.3-100');
+  });
+
+  it('ควรใช้ code ของตัวชี้วัดเป็นคำนำหน้า', async () => {
+    mockFindUnique.mockResolvedValue({ code: '1.1' });
+    mockFindMany.mockResolvedValue([]);
+
+    const result = await nextEvidenceCode(BigInt(5), 2567);
+
+    expect(result).toBe('1.1-01');
+  });
+
+  it('ควรโยน error เมื่อไม่พบตัวชี้วัด', async () => {
     mockFindUnique.mockResolvedValue(null);
 
-    await expect(nextEvidenceCode(indicatorId, fiscalYear)).rejects.toThrow(
-      'Indicator 999 not found'
-    );
+    await expect(nextEvidenceCode(BigInt(999), 2568)).rejects.toThrow('Indicator 999 not found');
+  });
+});
+
+describe('createWithEvidenceCode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFindUnique.mockResolvedValue({ code: '2.3' });
   });
 
-  it('ควรใช้ปีการศึกษาที่ถูกต้องในการนับหลักฐาน', async () => {
-    const indicatorId = BigInt(1);
-    const fiscalYear = 2567;
+  it('ควรส่งรหัสที่ออกให้ callback และคืนผลลัพธ์เมื่อสำเร็จครั้งแรก', async () => {
+    mockFindMany.mockResolvedValue([]);
+    const create = vi.fn().mockResolvedValue({ id: BigInt(1) });
 
-    // Mock indicator
-    mockFindUnique.mockResolvedValue({
-      code: '2.3',
-    });
+    const result = await createWithEvidenceCode(BigInt(1), 2568, create);
 
-    // Mock count
-    mockCount.mockResolvedValue(0);
-
-    await nextEvidenceCode(indicatorId, fiscalYear);
-
-    expect(mockCount).toHaveBeenCalledWith({
-      where: {
-        indicatorId,
-        fiscalYear: 2567,
-        del: false,
-      },
-    });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith('2.3-01');
+    expect(result).toEqual({ id: BigInt(1) });
   });
 
-  it('ควร pad รหัสให้เป็น 2 หลักเสมอ', async () => {
-    const indicatorId = BigInt(1);
-    const fiscalYear = 2568;
+  it('ควรออกเลขใหม่แล้วลองซ้ำเมื่อชนรหัสที่คำขออื่นเพิ่งใช้ไป', async () => {
+    // รอบแรกยังไม่เห็นแถวของอีกคำขอ → ได้ 01 แล้วชน
+    // รอบสองเห็นแถวนั้นแล้ว → ได้ 02 และผ่าน
+    mockFindMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ evidenceCode: '2.3-01' }]);
+    const create = vi
+      .fn()
+      .mockRejectedValueOnce(uniqueViolation(['indicatorId', 'fiscalYear', 'evidenceCode']))
+      .mockResolvedValueOnce({ id: BigInt(2) });
 
-    // Mock indicator
-    mockFindUnique.mockResolvedValue({
-      code: '1.1',
-    });
+    const result = await createWithEvidenceCode(BigInt(1), 2568, create);
 
-    // Mock count (มีหลักฐาน 9 รายการ)
-    mockCount.mockResolvedValue(9);
-
-    const result = await nextEvidenceCode(indicatorId, fiscalYear);
-
-    expect(result).toBe('1.1-10'); // 9 + 1 = 10 → 10 (ไม่ต้อง pad)
+    expect(create).toHaveBeenNthCalledWith(1, '2.3-01');
+    expect(create).toHaveBeenNthCalledWith(2, '2.3-02');
+    expect(result).toEqual({ id: BigInt(2) });
   });
 
-  it('ควร pad รหัสให้เป็น 2 หลักเมื่อน้อยกว่า 10', async () => {
-    const indicatorId = BigInt(1);
-    const fiscalYear = 2568;
+  it('ควรโยน error ต่อทันทีเมื่อไม่ใช่การชนรหัสหลักฐาน', async () => {
+    mockFindMany.mockResolvedValue([]);
+    const create = vi.fn().mockRejectedValue(new Error('DB ล่ม'));
 
-    // Mock indicator
-    mockFindUnique.mockResolvedValue({
-      code: '3.2',
-    });
+    await expect(createWithEvidenceCode(BigInt(1), 2568, create)).rejects.toThrow('DB ล่ม');
+    expect(create).toHaveBeenCalledTimes(1);
+  });
 
-    // Mock count (มีหลักฐาน 0 รายการ)
-    mockCount.mockResolvedValue(0);
+  it('ควรเลิกลองแล้วโยน error เมื่อชนซ้ำจนครบจำนวนครั้ง', async () => {
+    mockFindMany.mockResolvedValue([]);
+    const conflict = uniqueViolation(['evidenceCode']);
+    const create = vi.fn().mockRejectedValue(conflict);
 
-    const result = await nextEvidenceCode(indicatorId, fiscalYear);
-
-    expect(result).toBe('3.2-01'); // 0 + 1 = 1 → 01 (pad เป็น 2 หลัก)
+    await expect(createWithEvidenceCode(BigInt(1), 2568, create, 2)).rejects.toBe(conflict);
+    expect(create).toHaveBeenCalledTimes(2);
   });
 });

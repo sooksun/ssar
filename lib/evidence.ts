@@ -28,9 +28,18 @@ export function thaiFiscalYear(d: Date = new Date()): number {
   return m >= 10 ? y + 543 : y + 542;
 }
 
+/** escape อักขระพิเศษ regex — รหัสตัวชี้วัดมีจุด เช่น "2.3" */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * สร้างรหัสหลักฐานอัตโนมัติ: ${indicator.code}-${running2digits}
  * ตัวอย่าง: 2.3-01, 2.3-02, ...
+ *
+ * นับต่อจาก "เลขสูงสุดที่เคยออก" ไม่ใช่จำนวนแถวที่เหลืออยู่
+ * เพราะการ soft delete จะทำให้จำนวนลดลงและรหัสถัดไปชนกับรหัสที่ออกไปแล้ว
+ * — จึงต้องนับรวมแถวที่ del = true ด้วย
  */
 export async function nextEvidenceCode(
   indicatorId: bigint,
@@ -45,18 +54,67 @@ export async function nextEvidenceCode(
     throw new Error(`Indicator ${indicatorId} not found`);
   }
 
-  const existingCount = await prisma.evidence.count({
+  const prefix = `${indicator.code}-`;
+
+  const existing = await prisma.evidence.findMany({
     where: {
       indicatorId,
       fiscalYear: academicYear, // ใช้ academicYear แต่เก็บใน field fiscalYear (เพื่อความเข้ากันได้กับฐานข้อมูล)
-      del: false,
+      evidenceCode: { startsWith: prefix },
     },
+    select: { evidenceCode: true },
   });
 
-  const nextNumber = existingCount + 1;
-  const runningCode = String(nextNumber).padStart(2, '0');
+  const pattern = new RegExp(`^${escapeRegExp(prefix)}(\\d+)$`);
+  let maxNumber = 0;
+  for (const row of existing) {
+    const matched = row.evidenceCode ? pattern.exec(row.evidenceCode) : null;
+    if (!matched) continue;
+    const parsed = Number.parseInt(matched[1], 10);
+    if (Number.isFinite(parsed) && parsed > maxNumber) {
+      maxNumber = parsed;
+    }
+  }
 
-  return `${indicator.code}-${runningCode}`;
+  const runningCode = String(maxNumber + 1).padStart(2, '0');
+
+  return `${prefix}${runningCode}`;
+}
+
+/** true เมื่อ error คือการชน unique index ของรหัสหลักฐาน (P2002 บน evidenceCode) */
+function isEvidenceCodeConflict(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const { code, meta } = error as { code?: string; meta?: { target?: unknown } };
+  if (code !== 'P2002') return false;
+  const target = meta?.target;
+  const asText = Array.isArray(target) ? target.join(',') : String(target ?? '');
+  return asText.includes('evidenceCode');
+}
+
+/**
+ * ออกรหัสหลักฐานแล้วสร้างแถว โดยลองใหม่เมื่อชนรหัสที่ผู้ใช้อื่นเพิ่งใช้ไป
+ *
+ * การอ่านเลขสูงสุดกับการ insert ไม่ได้อยู่ใน transaction เดียวกัน — สองคำขอที่มาพร้อมกัน
+ * จึงอาจได้เลขเดียวกัน unique index ที่ฐานข้อมูลจะกันไว้ให้ แต่ฝั่งผู้ใช้ต้องไม่เห็น error
+ * ของ Prisma ดิบ ๆ จึงออกเลขใหม่แล้วลองซ้ำ
+ */
+export async function createWithEvidenceCode<T>(
+  indicatorId: bigint,
+  academicYear: number,
+  create: (evidenceCode: string) => Promise<T>,
+  attempts = 3
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const evidenceCode = await nextEvidenceCode(indicatorId, academicYear);
+    try {
+      return await create(evidenceCode);
+    } catch (error) {
+      if (!isEvidenceCodeConflict(error)) throw error;
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 /**

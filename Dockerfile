@@ -47,11 +47,18 @@ COPY --from=base /app/.next/standalone ./
 COPY --from=base /app/.next/static ./.next/static
 COPY --from=base /app/public ./public
 
-# prisma schema + migrations + CLI สำหรับรัน migrate deploy ตอน container start
+# prisma schema + migrations สำหรับรัน migrate deploy ตอน container start
 COPY --from=base /app/prisma ./prisma
-COPY --from=base /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
-COPY --from=base /app/node_modules/prisma ./node_modules/prisma
-COPY --from=base /app/node_modules/@prisma ./node_modules/@prisma
+
+# ต้อง copy node_modules ทั้งก้อนจาก base stage (ไม่ใช่แค่ 3 โฟลเดอร์ prisma/@prisma/.bin) เพราะ
+# `prisma` CLI ไม่ใช่ single-file binary — .bin/prisma เป็น symlink ที่ Docker COPY จะ dereference
+# กลายเป็นไฟล์ 2.8MB ที่หลุดจาก sibling `prisma_schema_build_bg.wasm` (อยู่ใต้ node_modules/prisma/build/)
+# ทำให้ crash ด้วย ENOENT ...wasm ตอน container start และต่อให้เรียก node_modules/prisma/build/index.js
+# ตรง ๆ ก็ยัง crash ด้วย "Cannot find module 'effect'" เพราะ CLI มี dependency closure ทั้งก้อน
+# (effect, @prisma/config, ฯลฯ) ที่การ copy แค่ 3 โฟลเดอร์ไม่ครอบคลุม การ copy node_modules เต็ม ๆ
+# จาก base stage (ต้องอยู่ "หลัง" COPY standalone/static/public ด้านบน เพื่อให้ node_modules ก้อนเต็ม
+# นี้ทับ node_modules แบบ pruned ที่ Next standalone วางไว้) แก้ปัญหานี้ตรง ๆ โดยแลกกับขนาด image ที่ใหญ่ขึ้น
+COPY --from=base /app/node_modules ./node_modules
 
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
