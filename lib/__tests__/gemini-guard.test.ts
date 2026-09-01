@@ -20,11 +20,13 @@ vi.mock('@google/generative-ai', () => ({
 }));
 
 let assertFileAnalyzable: typeof import('../ai/gemini').assertFileAnalyzable;
+let FileNotAnalyzableError: typeof import('../ai/gemini').FileNotAnalyzableError;
 let MAX_INLINE_FILE_BYTES: number;
 
 beforeAll(async () => {
   const mod = await import('../ai/gemini');
   assertFileAnalyzable = mod.assertFileAnalyzable;
+  FileNotAnalyzableError = mod.FileNotAnalyzableError;
   MAX_INLINE_FILE_BYTES = mod.MAX_INLINE_FILE_BYTES;
 });
 
@@ -62,5 +64,26 @@ describe('assertFileAnalyzable', () => {
 
   it('เพดานต้องไม่เกิน 20MB ซึ่งเป็นขีดจำกัดของ Gemini inline data', () => {
     expect(MAX_INLINE_FILE_BYTES).toBeLessThanOrEqual(20 * 1024 * 1024);
+  });
+
+  // route handler แยก 422 (บอกผู้ใช้ได้) ออกจาก 500 (error ภายใน) ด้วย instanceof
+  // ถ้า guard โยน Error ธรรมดา ผู้ใช้จะได้ 500 ทั้งที่ปัญหาอยู่ที่ตัวไฟล์เอง
+  it('ทุกกรณีที่ถูกปฏิเสธต้องโยน FileNotAnalyzableError ไม่ใช่ Error ธรรมดา', () => {
+    mockStatSync.mockReturnValue({ size: 1024 });
+    expect(() => assertFileAnalyzable('/tmp/v.mp4', 'video/mp4')).toThrow(
+      FileNotAnalyzableError
+    );
+
+    mockStatSync.mockReturnValue({ size: MAX_INLINE_FILE_BYTES + 1 });
+    expect(() => assertFileAnalyzable('/tmp/big.png', 'image/png')).toThrow(
+      FileNotAnalyzableError
+    );
+
+    mockStatSync.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+    expect(() => assertFileAnalyzable('/tmp/missing.png', 'image/png')).toThrow(
+      FileNotAnalyzableError
+    );
   });
 });

@@ -25,6 +25,18 @@ export interface AnalysisResult {
   suggestions: string[];
 }
 
+/**
+ * โยนเมื่อไฟล์ถูกด่าน guard ปฏิเสธ (ชนิดไฟล์ไม่รองรับ / ไฟล์ใหญ่เกินเพดาน / อ่านไฟล์ไม่ได้)
+ * แยกจาก error อื่น ๆ ที่เกิดจาก Gemini เอง (เช่น API key ไม่ถูกต้อง, network/quota, parse response ล้มเหลว)
+ * เพื่อให้ผู้เรียก (route handler) ตัดสินใจได้ว่าข้อความไหนปลอดภัยที่จะส่งกลับให้ผู้ใช้เห็นตรง ๆ
+ */
+export class FileNotAnalyzableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FileNotAnalyzableError';
+  }
+}
+
 function getGenAI() {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error('GEMINI_API_KEY is not set');
@@ -49,7 +61,7 @@ export function assertFileAnalyzable(filePath: string, mimeType: string): void {
     INLINE_ANALYZABLE_MIME_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 
   if (!supported) {
-    throw new Error(
+    throw new FileNotAnalyzableError(
       `ไม่รองรับการวิเคราะห์ไฟล์ชนิด ${mimeType || 'ไม่ทราบชนิด'} ด้วย AI — รองรับเฉพาะรูปภาพและ PDF`
     );
   }
@@ -58,12 +70,12 @@ export function assertFileAnalyzable(filePath: string, mimeType: string): void {
   try {
     size = fs.statSync(filePath).size;
   } catch {
-    throw new Error('ไม่พบไฟล์สำหรับวิเคราะห์');
+    throw new FileNotAnalyzableError('ไม่พบไฟล์สำหรับวิเคราะห์');
   }
 
   if (size > MAX_INLINE_FILE_BYTES) {
     const limitMb = Math.floor(MAX_INLINE_FILE_BYTES / (1024 * 1024));
-    throw new Error(`ไฟล์ใหญ่เกินขีดจำกัดการวิเคราะห์ด้วย AI (สูงสุด ${limitMb} MB)`);
+    throw new FileNotAnalyzableError(`ไฟล์ใหญ่เกินขีดจำกัดการวิเคราะห์ด้วย AI (สูงสุด ${limitMb} MB)`);
   }
 }
 
