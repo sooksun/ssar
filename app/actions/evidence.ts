@@ -13,6 +13,7 @@ import {
   thaiAcademicYear,
   thaiFiscalYear,
   nextEvidenceCode,
+  createWithEvidenceCode,
   getDefaultQAIndicatorId,
 } from '@/lib/evidence';
 import {
@@ -1214,25 +1215,28 @@ export async function createEvidence(formData: FormData) {
       return { success: false, error: 'คุณไม่มีสิทธิ์เข้าถึงโรงเรียนนี้' };
     }
 
-    // สร้างรหัสหลักฐานอัตโนมัติ
-    const evidenceCode = await nextEvidenceCode(validated.indicatorId, validated.fiscalYear);
-
-    // สร้างหลักฐาน
-    const evidence = await prisma.evidence.create({
-      data: {
-        schoolId: validated.schoolId,
-        indicatorId: validated.indicatorId,
-        fiscalYear: validated.fiscalYear,
-        academicYear: validated.academicYear,
-        title: validated.title,
-        description: validated.description || null,
-        evidenceCode,
-        status: validated.status,
-        privacyLevel: validated.privacyLevel,
-        ownerUserId: validated.ownerUserId || BigInt(user.id),
-        createdBy: BigInt(user.id),
-      },
-    });
+    // สร้างรหัสหลักฐานอัตโนมัติ แล้วสร้างแถว (ออกเลขใหม่ให้เองถ้าชนกับคำขอที่มาพร้อมกัน)
+    const evidence = await createWithEvidenceCode(
+      validated.indicatorId,
+      validated.fiscalYear,
+      (evidenceCode) =>
+        prisma.evidence.create({
+          data: {
+            schoolId: validated.schoolId,
+            indicatorId: validated.indicatorId,
+            fiscalYear: validated.fiscalYear,
+            academicYear: validated.academicYear,
+            title: validated.title,
+            description: validated.description || null,
+            evidenceCode,
+            status: validated.status,
+            privacyLevel: validated.privacyLevel,
+            ownerUserId: validated.ownerUserId || BigInt(user.id),
+            createdBy: BigInt(user.id),
+          },
+        })
+    );
+    const evidenceCode = evidence.evidenceCode;
 
     // Audit log
     await logAction(
@@ -1306,23 +1310,28 @@ export async function createWorkCollectionItem(formData: FormData) {
 
   try {
     const defaultIndicatorId = await getDefaultQAIndicatorId();
-    const evidenceCode = await nextEvidenceCode(defaultIndicatorId, fiscalYear);
 
-    const evidence = await prisma.evidence.create({
-      data: {
-        schoolId,
-        indicatorId: defaultIndicatorId,
-        fiscalYear,
-        academicYear,
-        title,
-        description,
-        evidenceCode,
-        status: 'PENDING',
-        privacyLevel: 'INTERNAL',
-        ownerUserId: BigInt(user.id),
-        createdBy: BigInt(user.id),
-      },
-    });
+    const evidence = await createWithEvidenceCode(
+      defaultIndicatorId,
+      fiscalYear,
+      (evidenceCode) =>
+        prisma.evidence.create({
+          data: {
+            schoolId,
+            indicatorId: defaultIndicatorId,
+            fiscalYear,
+            academicYear,
+            title,
+            description,
+            evidenceCode,
+            status: 'PENDING',
+            privacyLevel: 'INTERNAL',
+            ownerUserId: BigInt(user.id),
+            createdBy: BigInt(user.id),
+          },
+        })
+    );
+    const evidenceCode = evidence.evidenceCode;
 
     await logAction(
       user.id,

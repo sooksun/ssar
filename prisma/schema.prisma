@@ -232,6 +232,9 @@ model Evidence {
   pdpaChecked         Boolean? // ตรวจ PDPA (ถ้าเปิดใช้)
   pdpaRiskLevel       String? // ระดับความเสี่ยง PDPA
 
+  // ตาข่ายกันพลาดระดับฐานข้อมูล: รหัสหลักฐานห้ามซ้ำในตัวชี้วัด+ปีเดียวกัน
+  // (evidenceCode เป็น nullable — MySQL ยอมให้มีหลาย NULL ในดัชนี unique ได้)
+  @@unique([indicatorId, fiscalYear, evidenceCode], name: "evidence_code_per_indicator_year")
   @@index([schoolId, fiscalYear, indicatorId, status])
   @@index([schoolId, academicYear, indicatorId, status])
   // รองรับหน้ารายการหลักฐาน: WHERE schoolId IN (...) AND del = false ORDER BY createdAt DESC
