@@ -27,6 +27,9 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+# env ของ production และไฟล์สำรองของมัน — ห้าม commit (.env.example / .env.docker.example ยัง track ได้)
+.env.production
+.env.production.*
 
 # vercel
 .vercel
