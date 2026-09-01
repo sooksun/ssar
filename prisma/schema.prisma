@@ -489,6 +489,10 @@ model AuditLog {
   payload     Json?
   createdAt   DateTime @default(now())
 
+  @@index([createdAt])
+  @@index([schoolId, createdAt])
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
   @@map("auditlog")
 }
 
