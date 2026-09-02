@@ -25,6 +25,10 @@ export default async function DashboardPage() {
   const user = session.user;
   const schoolIds = await getUserSchools(user.id);
 
+  // คำนวณครั้งเดียว — ป้องกันคำขอที่ตกคร่อมเที่ยงคืน/สิ้นเดือนได้ query กับการจัดกลุ่มรายเดือนไม่ตรงกัน
+  const now = new Date();
+  const trendStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
   const evidenceWhere: Prisma.EvidenceWhereInput = {
     schoolId: { in: schoolIds },
     del: false,
@@ -37,7 +41,8 @@ export default async function DashboardPage() {
     reviewsCount,
     recentReviews,
     evidenceStatusByIndicator,
-    evaluationRecords,
+    evaluationTotals,
+    recentEvaluations,
     indicatorStandards,
     evidenceIndicatorPairs,
     pendingEvidence,
@@ -70,8 +75,16 @@ export default async function DashboardPage() {
       _count: { _all: true },
       where: { schoolId: { in: schoolIds }, del: false },
     }),
-    prisma.externalEvaluation.findMany({
+    // aggregate ที่ DB แทนการดึง ExternalEvaluation ทุกแถวมานับใน JS
+    // นับ/เฉลี่ยจากทุกแถวตลอดกาล (ไม่จำกัด 6 เดือน) — ต้องตรงกับ totalEvaluations/evaluationAverageScore เดิม
+    prisma.externalEvaluation.aggregate({
       where: { schoolId: { in: schoolIds } },
+      _count: { _all: true },
+      _avg: { score: true },
+    }),
+    // เฉพาะ 6 เดือนล่าสุด — ใช้กับกราฟคะแนนต่อมาตรฐานและกราฟแนวโน้มรายเดือนเท่านั้น
+    prisma.externalEvaluation.findMany({
+      where: { schoolId: { in: schoolIds }, evaluationDate: { gte: trendStart } },
       select: { score: true, evaluationDate: true, evidenceId: true },
     }),
     // แผนที่ indicatorId -> standard (master data ขนาดคงที่ ไม่โตตามจำนวนหลักฐาน)
@@ -149,12 +162,9 @@ export default async function DashboardPage() {
     { status: 'MISSING', label: getEvidenceStatusLabel('MISSING'), value: missingCount },
   ];
 
-  const totalEvaluations = evaluationRecords.length;
-  const scoredEvaluations = evaluationRecords.filter((ev) => ev.score !== null && ev.score !== undefined);
+  const totalEvaluations = evaluationTotals._count._all;
   const evaluationAverageScore =
-    scoredEvaluations.length > 0
-      ? scoredEvaluations.reduce((sum, ev) => sum + Number(ev.score), 0) / scoredEvaluations.length
-      : null;
+    evaluationTotals._avg.score !== null ? Number(evaluationTotals._avg.score) : null;
 
   const evaluationByStandardMap = new Map<
     string,
@@ -163,7 +173,7 @@ export default async function DashboardPage() {
   const indicatorByEvidence = new Map(
     evidenceIndicatorPairs.map((e) => [e.id.toString(), e.indicatorId.toString()]),
   );
-  for (const ev of evaluationRecords) {
+  for (const ev of recentEvaluations) {
     const indicatorId = indicatorByEvidence.get(ev.evidenceId.toString());
     const standard = indicatorId ? standardByIndicator.get(indicatorId) : undefined;
     const standardCode = standard?.code || 'ไม่ทราบ';
@@ -193,7 +203,6 @@ export default async function DashboardPage() {
       averageScore: value.scored > 0 ? Number((value.sumScore / value.scored).toFixed(2)) : 0,
     }));
 
-  const now = new Date();
   const monthKeys: { key: string; label: string }[] = [];
   for (let i = 5; i >= 0; i -= 1) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -205,11 +214,10 @@ export default async function DashboardPage() {
     string,
     { label: string; evaluations: number; sumScore: number; scored: number }
   >(monthKeys.map((item) => [item.key, { label: item.label, evaluations: 0, sumScore: 0, scored: 0 }]));
-  const minDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-  for (const ev of evaluationRecords) {
+  for (const ev of recentEvaluations) {
     const date = new Date(ev.evaluationDate);
-    if (date < minDate) continue;
+    if (date < trendStart) continue;
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     const bucket = monthMap.get(key);
     if (!bucket) continue;
