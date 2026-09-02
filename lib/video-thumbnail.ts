@@ -1,15 +1,28 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import { mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 
-const execAsync = promisify(exec);
+// execFile ไม่ผ่าน shell — argument ถูกส่งเป็น array ตรงเข้าโปรเซส
+// ห้ามเปลี่ยนกลับไปใช้ exec: ชื่อไฟล์วิดีโอมาจากผู้ใช้ ถ้าต่อเป็น shell string
+// อักขระอย่าง " ; $( ) จะกลายเป็นคำสั่งเชลล์
+const execFileAsync = promisify(execFile);
+
+/** ตรวจว่ามี ffmpeg/ffprobe ให้ใช้หรือไม่ */
+async function hasBinary(bin: 'ffmpeg' | 'ffprobe'): Promise<boolean> {
+  try {
+    await execFileAsync(bin, ['-version']);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * สร้าง thumbnail จากวิดีโอโดยใช้ ffmpeg
  * Capture frame ที่วินาทีที่ 10 (หรือ frame ที่ใกล้เคียง)
- * 
+ *
  * @param videoPath - Absolute path to video file
  * @param outputPath - Absolute path to output thumbnail image
  * @param frameTime - Time in seconds to capture (default: 10)
@@ -27,10 +40,7 @@ export async function generateVideoThumbnail(
       return false;
     }
 
-    // ตรวจสอบว่า ffmpeg ติดตั้งอยู่หรือไม่
-    try {
-      await execAsync('ffmpeg -version');
-    } catch {
+    if (!(await hasBinary('ffmpeg'))) {
       console.warn('[video-thumbnail] ffmpeg not found, skipping thumbnail generation');
       return false;
     }
@@ -47,18 +57,29 @@ export async function generateVideoThumbnail(
     // -vframes 1: capture เพียง 1 frame
     // -q:v 2: quality (2 = high quality, scale 1-31, ต่ำกว่า = คุณภาพดีกว่า)
     // -y: overwrite output file
-    // Escape paths สำหรับ shell command
-    const escapedVideoPath = videoPath.replace(/"/g, '\\"');
-    const escapedOutputPath = outputPath.replace(/"/g, '\\"');
-    const command = `ffmpeg -ss ${frameTime} -i "${escapedVideoPath}" -vframes 1 -q:v 2 -y "${escapedOutputPath}"`;
-    
-    await execAsync(command, { timeout: 30000 }); // 30 seconds timeout
-    
+    const seconds = Number.isFinite(frameTime) && frameTime >= 0 ? frameTime : 10;
+    await execFileAsync(
+      'ffmpeg',
+      [
+        '-ss',
+        String(seconds),
+        '-i',
+        videoPath,
+        '-vframes',
+        '1',
+        '-q:v',
+        '2',
+        '-y',
+        outputPath,
+      ],
+      { timeout: 30000 } // 30 seconds timeout
+    );
+
     // ตรวจสอบว่า thumbnail ถูกสร้างแล้ว
     if (existsSync(outputPath)) {
       return true;
     }
-    
+
     return false;
   } catch (error) {
     console.error('[video-thumbnail] Error generating thumbnail:', error);
@@ -71,15 +92,24 @@ export async function generateVideoThumbnail(
  */
 export async function getVideoDuration(videoPath: string): Promise<number | null> {
   try {
-    try {
-      await execAsync('ffmpeg -version');
-    } catch {
+    if (!(await hasBinary('ffprobe'))) {
       return null;
     }
 
     // ใช้ ffprobe เพื่อดึงข้อมูลวิดีโอ
-    const command = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`;
-    const { stdout } = await execAsync(command);
+    const { stdout } = await execFileAsync(
+      'ffprobe',
+      [
+        '-v',
+        'error',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'default=noprint_wrappers=1:nokey=1',
+        videoPath,
+      ],
+      { timeout: 30000 }
+    );
     const duration = parseFloat(stdout.trim());
     return isNaN(duration) ? null : duration;
   } catch (error) {
@@ -87,4 +117,3 @@ export async function getVideoDuration(videoPath: string): Promise<number | null
     return null;
   }
 }
-
