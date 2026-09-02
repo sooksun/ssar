@@ -1,4 +1,5 @@
 import { AUDIT_ACTIONS } from '@/lib/audit';
+import { requireRoles } from '@/lib/auth/guards';
 import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 
@@ -22,6 +23,8 @@ function formatDate(date: Date) {
 }
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await requireRoles(['ADMIN']);
+
   const params = await searchParams;
   const actionFilter = params?.action && params.action !== 'ALL' ? params.action : undefined;
   const schoolFilter =

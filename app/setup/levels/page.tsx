@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { requireRoles } from '@/lib/auth/guards';
 import { prisma } from '@/lib/db';
 
 type SearchParams = {
@@ -10,6 +11,8 @@ export default async function LevelsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await requireRoles(['ADMIN', 'QA_LEAD']);
+
   const params = await searchParams;
   const levels = await prisma.eduLevel.findMany({
     orderBy: { id: 'asc' },

@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth/nextauth';
+import { requireRoles } from '@/lib/auth/guards';
 import Link from 'next/link';
 
 const adminLinks = [
@@ -30,7 +30,7 @@ const adminLinks = [
 ];
 
 export default async function AdminIndexPage() {
-  const session = await auth();
+  const session = await requireRoles(['ADMIN']);
   const roles = session?.user.roles ?? [];
   const isAdmin = roles.some((role) => role.role === 'ADMIN');
 

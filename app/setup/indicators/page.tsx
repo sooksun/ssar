@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { requireRoles } from '@/lib/auth/guards';
 import { prisma } from '@/lib/db';
 
 type SearchParams = {
@@ -16,6 +17,8 @@ export default async function IndicatorsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await requireRoles(['ADMIN', 'QA_LEAD']);
+
   const params = await searchParams;
   const [standards, indicators] = await Promise.all([
     prisma.qAStandard.findMany({

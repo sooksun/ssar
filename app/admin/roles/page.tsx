@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { requireRoles } from '@/lib/auth/guards';
 import { prisma } from '@/lib/db';
 
 type SearchParams = {
@@ -12,6 +13,8 @@ function getMessage(params: SearchParams | undefined) {
 }
 
 export default async function RolesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await requireRoles(['ADMIN']);
+
   const params = await searchParams;
   const roles = await prisma.role.findMany({
     orderBy: { code: 'asc' },
