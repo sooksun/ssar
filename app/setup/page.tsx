@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth/nextauth';
+import { requireRoles } from '@/lib/auth/guards';
 import Link from 'next/link';
 
 const setupLinks = [
@@ -25,7 +25,7 @@ const setupLinks = [
 ];
 
 export default async function SetupIndexPage() {
-  const session = await auth();
+  const session = await requireRoles(['ADMIN', 'QA_LEAD']);
   const roles = session?.user.roles ?? [];
   const allowedRoles = new Set(['ADMIN', 'QA_LEAD']);
   const hasPermission = roles.some((role) => allowedRoles.has(role.role));

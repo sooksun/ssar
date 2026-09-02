@@ -1,5 +1,4 @@
-import { auth } from '@/lib/auth/nextauth';
-import { redirect } from 'next/navigation';
+import { requireRoles } from '@/lib/auth/guards';
 import { prisma } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -17,12 +16,7 @@ export default async function SchoolRolesPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/login');
-  const roles = session.user.roles ?? [];
-  if (!roles.some((r: { role?: string }) => r.role === 'ADMIN')) {
-    redirect('/admin');
-  }
+  await requireRoles(['ADMIN']);
 
   const params = await searchParams;
   const filterSchoolId = typeof params.schoolId === 'string' ? params.schoolId : '';

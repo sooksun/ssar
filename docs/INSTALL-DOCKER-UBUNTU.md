@@ -59,7 +59,7 @@ cd /DATA/AppData/www/ssar
 สร้าง database และ user บน MariaDB แล้วใช้ connection string ใน `.env`:
 
 ```env
-DATABASE_URL="mysql://casaos:casaos@192.168.1.4:3306/qa_external?schema=public&authPlugin=mysql_native_password"
+DATABASE_URL="mysql://<user>:<password>@<db-host>:3306/qa_external?schema=public&authPlugin=mysql_native_password"
 ```
 
 ตรวจสอบว่าเครื่อง Ubuntu (และ Docker container) สามารถเชื่อมต่อ `192.168.1.4:3306` ได้ ( firewall / routing ).

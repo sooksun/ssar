@@ -31,7 +31,7 @@ cd /DATA/AppData/www/ssar
 สร้าง database และ user แล้วใช้ connection string ใน `.env`:
 
 ```env
-DATABASE_URL="mysql://casaos:casaos@192.168.1.4:3306/qa_external?schema=public&authPlugin=mysql_native_password"
+DATABASE_URL="mysql://<user>:<password>@<db-host>:3306/qa_external?schema=public&authPlugin=mysql_native_password"
 ```
 
 ตรวจสอบว่า container สามารถเชื่อมต่อ 192.168.1.4 ได้ (network/firewall ของ host และ Docker).
