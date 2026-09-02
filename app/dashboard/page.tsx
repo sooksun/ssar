@@ -28,6 +28,7 @@ export default async function DashboardPage() {
   // คำนวณครั้งเดียว — ป้องกันคำขอที่ตกคร่อมเที่ยงคืน/สิ้นเดือนได้ query กับการจัดกลุ่มรายเดือนไม่ตรงกัน
   const now = new Date();
   const trendStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const trendEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
   const evidenceWhere: Prisma.EvidenceWhereInput = {
     schoolId: { in: schoolIds },
@@ -84,7 +85,7 @@ export default async function DashboardPage() {
     }),
     // เฉพาะ 6 เดือนล่าสุด — ใช้กับกราฟคะแนนต่อมาตรฐานและกราฟแนวโน้มรายเดือนเท่านั้น
     prisma.externalEvaluation.findMany({
-      where: { schoolId: { in: schoolIds }, evaluationDate: { gte: trendStart } },
+      where: { schoolId: { in: schoolIds }, evaluationDate: { gte: trendStart, lt: trendEnd } },
       select: { score: true, evaluationDate: true, evidenceId: true },
     }),
     // แผนที่ indicatorId -> standard (master data ขนาดคงที่ ไม่โตตามจำนวนหลักฐาน)
