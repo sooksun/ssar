@@ -44,6 +44,7 @@ export default async function DashboardPage() {
     evidenceStatusByIndicator,
     evaluationTotals,
     recentEvaluations,
+    evalByEvidence,
     indicatorStandards,
     evidenceIndicatorPairs,
     pendingEvidence,
@@ -83,10 +84,19 @@ export default async function DashboardPage() {
       _count: { _all: true },
       _avg: { score: true },
     }),
-    // เฉพาะ 6 เดือนล่าสุด — ใช้กับกราฟคะแนนต่อมาตรฐานและกราฟแนวโน้มรายเดือนเท่านั้น
+    // เฉพาะ 6 เดือนล่าสุด — ใช้กับกราฟแนวโน้มรายเดือนเท่านั้น
     prisma.externalEvaluation.findMany({
       where: { schoolId: { in: schoolIds }, evaluationDate: { gte: trendStart, lt: trendEnd } },
       select: { score: true, evaluationDate: true, evidenceId: true },
+    }),
+    // คะแนนต่อมาตรฐาน = ตลอดกาล (ไม่จำกัด 6 เดือน) — group ที่ DB ตาม evidenceId
+    // ผลลัพธ์มีขนาดเท่าจำนวนหลักฐานที่มีผลประเมิน ไม่ใช่จำนวนผลประเมิน แล้วรวมขึ้นระดับมาตรฐานใน JS
+    // ใช้ _sum + _count.score เพื่อได้ค่าเฉลี่ยจริงต่อมาตรฐาน (ไม่ใช่เฉลี่ยของเฉลี่ย)
+    prisma.externalEvaluation.groupBy({
+      by: ['evidenceId'],
+      where: { schoolId: { in: schoolIds } },
+      _count: { _all: true, score: true },
+      _sum: { score: true },
     }),
     // แผนที่ indicatorId -> standard (master data ขนาดคงที่ ไม่โตตามจำนวนหลักฐาน)
     prisma.qAIndicator.findMany({
@@ -174,8 +184,9 @@ export default async function DashboardPage() {
   const indicatorByEvidence = new Map(
     evidenceIndicatorPairs.map((e) => [e.id.toString(), e.indicatorId.toString()]),
   );
-  for (const ev of recentEvaluations) {
-    const indicatorId = indicatorByEvidence.get(ev.evidenceId.toString());
+  // คะแนนต่อมาตรฐานคิดจากผลประเมินตลอดกาล (ทุกช่วงเวลา) — รวมจากกลุ่มที่ group ตาม evidenceId
+  for (const grp of evalByEvidence) {
+    const indicatorId = indicatorByEvidence.get(grp.evidenceId.toString());
     const standard = indicatorId ? standardByIndicator.get(indicatorId) : undefined;
     const standardCode = standard?.code || 'ไม่ทราบ';
     const standardName = standard?.nameTh || 'ไม่ระบุ';
@@ -185,11 +196,9 @@ export default async function DashboardPage() {
       scored: 0,
       sumScore: 0,
     };
-    current.total += 1;
-    if (ev.score !== null && ev.score !== undefined) {
-      current.scored += 1;
-      current.sumScore += Number(ev.score);
-    }
+    current.total += grp._count._all;
+    current.scored += grp._count.score;
+    current.sumScore += grp._sum.score !== null ? Number(grp._sum.score) : 0;
     evaluationByStandardMap.set(standardCode, current);
   }
 
